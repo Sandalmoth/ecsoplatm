@@ -96,30 +96,6 @@ proc getOrDefault*[T](t: CmpTable[T], key: int): (T, bool) =
     result = (t.data[lb][1], true)
 
 
-
-# FIXME this implementaiton has dubious syntax
-# and also doesn't seem necessary?
-# proc `[]`*[T, U](
-#   t: var CmpTable[T],
-#   u: var CmpTable[U],
-#   key: int
-# ): (ptr T, ptr U) =
-#   ## Retrieve value for ``key``.
-#   ## Returns (nil, nil) if not present
-#   if t.data.len == 0 or u.data.len == 0:
-#     return (nil, nil)
-#   let lbt = t.lowerBound(key)
-#   if t.data[lbt][0] == key:
-#     result[0] = t.data[lbt][1].addr
-#   else:
-#     return (nil, nil)
-#   let lbu = u.lowerBound(key)
-#   if u.data[lbu][0] == key:
-#     result[1] = u.data[lbu][1].addr
-#   else:
-#     return (nil, nil)
-
-
 proc hasKey*[T](t: CmpTable[T], key: int): bool =
   ## Test whether ``key`` is present.
   let lb = t.lowerBound(key) 
@@ -161,6 +137,7 @@ proc `$`*[T](t: CmpTable[T]): string =
   for kv in t.data:
     result = result & $kv & " "
   result = result & "}"
+
 
 # TODO: In principle, values and pvalues for an arbitrary number of containers
 # could probably be generated using a varargs macro.
