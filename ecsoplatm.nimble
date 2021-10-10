@@ -9,5 +9,6 @@ srcDir        = "src"
 
 # Dependencies
 
-requires "nim >= 1.4.8"
+requires "nim >= 1.4.0"
 requires "weave >= 0.4.9"
+# requires "https://github.com/Sandalmoth/interval-treap-map#head"
