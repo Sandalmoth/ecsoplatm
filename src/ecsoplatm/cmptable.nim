@@ -139,12 +139,15 @@ proc `$`*[T](t: CmpTable[T]): string =
 # assumes an active weave worker pool
 # does not guarantee ordered execution
 
-proc apply*[F, T](f: F, t: var CmpTable[T]) =
-  for i in 0..<t.len:
-    f(t.data[i][1].addr)
+# proc apply*[F, T](f: F, t: var CmpTable[T]) =
+# proc apply*[T](f: proc (x: ptr T), t: var CmpTable[T]) =
+template apply*(f, a: untyped) =
+  for i in 0..<a.len:
+    spawn f(a.data[i][1].addr)
 
 
-proc apply*[F, T, U](f: F, a: var CmpTable[T], b: var CmpTable[U]) =
+# proc apply*[F, T, U](f: F, a: var CmpTable[T], b: var CmpTable[U]) =
+template apply*(f, a, b: untyped) =
   # for i in 0..<t.len:
   #   f(t.data[i][1])
 
