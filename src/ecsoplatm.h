@@ -30,6 +30,17 @@ namespace ecs {
 
   };
 
+
+  template <typename F, typename T>
+  void apply(Component<T> &a) {
+    F f;
+    auto it_a = a.data.begin();
+    while (it_a != a.data.end()) {
+        f(it_a->second);
+        ++it_a;
+    }
+  }
+
   template <typename F, typename T, typename U>
   void apply(Component<T>& a, Component<U>& b) {
     F f;
@@ -37,7 +48,7 @@ namespace ecs {
     auto it_b = b.data.begin();
     while ((it_a != a.data.end()) && (it_b != b.data.end())) {
       if (it_a->first == it_b->first) {
-        f(&(it_a->second), &(it_b->second));
+        f(it_a->second, it_b->second);
         ++it_a;
         ++it_b;
       } else if (it_a->first < it_b->first) {
@@ -56,7 +67,7 @@ namespace ecs {
     auto it_c = c.data.begin();
     while ((it_a != a.data.end()) && (it_b != b.data.end()) && (it_c != c.data.end())) {
       if ((it_a->first == it_b->first) && (it_a->first == it_c->first)) {
-        f(&(it_a->second), &(it_b->second, &(it_c->second)));
+        f(it_a->second, it_b->second, it_c->second);
         ++it_a;
         ++it_b;
         ++it_c;

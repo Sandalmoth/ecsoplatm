@@ -6,7 +6,10 @@
 #include "../src/ecsoplatm.h"
 
 struct foo {
-  void operator()(float* a, float* b) { (*a) *= (*b); }
+  void operator()(float& a) { a *= a; }
+};
+struct bar {
+  void operator()(float &a, float &b) { a *= b; }
 };
 
 int main() {
@@ -29,7 +32,8 @@ int main() {
   c2.data.push_back(std::make_pair(1, 3.0));
   c2.data.push_back(std::make_pair(5, 7.0));
 
-  ecs::apply<foo>(c, c2);
+  ecs::apply<foo>(c);
+  ecs::apply<bar>(c, c2);
 
   for (int i = 0; i < 6; ++i) {
     auto x = c[i];

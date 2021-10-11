@@ -1,6 +1,10 @@
 import weave
 
 
+const
+  batchSize = 128
+
+
 type
   CmpTable*[T] = object
     data: seq[(int, T)]
@@ -139,11 +143,22 @@ proc `$`*[T](t: CmpTable[T]): string =
 # assumes an active weave worker pool
 # does not guarantee ordered execution
 
+# proc applyImpl[T](f: proc (x: ptr T), a: ptr CmpTable[T], first, last: int) =
+proc applyImpl[F, T](f: F, a: ptr CmpTable[T], first, last: int) =
+# proc applyImpl(f, a: untyped, first, last: int) =
+  for i in first..<last:
+    let p = a.data[i][1].addr
+    f(p)
+
+
 # proc apply*[F, T](f: F, t: var CmpTable[T]) =
 # proc apply*[T](f: proc (x: ptr T), t: var CmpTable[T]) =
 template apply*(f, a: untyped) =
-  for i in 0..<a.len:
-    spawn f(a.data[i][1].addr)
+  # for i in 0..<a.len:
+  #   spawn f(a.data[i][1].addr)
+  let n = (a.len div batchSize) + 1
+  echo n
+  spawn applyImpl(f, a.addr, 0, a.len)
 
 
 # proc apply*[F, T, U](f: F, a: var CmpTable[T], b: var CmpTable[U]) =
