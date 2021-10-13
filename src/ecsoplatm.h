@@ -10,13 +10,20 @@
 
 // chunk arrays into jobs of this size
 // when running multithreaded versions
-const uint32_t BLOCK_SIZE = 256;
+const uint32_t BLOCK_SIZE = 1024;
 
 namespace ecs {
 
   template <typename T>
   struct Component {
+    // a component is a sorted vector of entity id - value pairs
+    // since preserving the sorting is critical (and slow)
+    // all creation and destruction is deferred to an update step
+    // that can be ran at the end of the gameloop
     std::vector<std::pair<uint32_t, T>> data;
+    std::vector<std::pair<uint32_t, T>> create_queue;
+    std::vector<typename std::vector<std::pair<uint32_t, T>>::iterator> destroy_queue;
+
 
     T* operator[](uint32_t key) {
       auto it = std::lower_bound(
@@ -32,6 +39,58 @@ namespace ecs {
         return nullptr;
       }
     }
+
+
+    void create(uint32_t entity, T value) {
+      create_queue.push_back(std::make_pair(entity, value));
+    }
+
+
+    void destroy(uint32_t entity) {
+      // we may as well find right away what entity will be destroyed
+      // since all modifications are guaranteed (if used correctly...)
+      // to happen after actually using this iterator
+      auto it = std::lower_bound(
+                                 data.begin(), data.end(), entity,
+                                 [](const std::pair<uint32_t, T>& a, uint32_t b) {
+                                   return a.first < b;
+                                 });
+      if (it != data.end()) {
+        destroy_queue.push_back(it);
+      }
+    }
+
+
+    void update() {
+      // execute deferred destruction
+      auto last = --data.end();
+      for (auto it: destroy_queue) {
+        // swap to last, then erase (for speed!)
+        std::iter_swap(it, last);
+        data.erase(last--);
+      }
+      destroy_queue.clear();
+      // execute deferred creation
+      for (auto &ev: create_queue) {
+        // FIXME? it's not great that this fails silently
+        // if the entity already exists
+        data.push_back(std::move(ev));
+      }
+      create_queue.clear();
+      // sort by entity id
+      std::sort(data.begin(), data.end(),
+                [](const std::pair<uint32_t, T> &a,
+                   const std::pair<uint32_t, T> &b) {
+                  return a.first < b.first;
+                });
+    }
+
+
+    void update(thread_pool& pool) {
+      // version that delegates to a thread pool
+      pool.push_task([this](){ update(); });
+    }
+
   };
 
 
@@ -96,7 +155,7 @@ namespace ecs {
   template <typename T, typename U>
     void apply(void (*f)(T &, U &), Component<T>& a, Component<U>& b, thread_pool &pool) {
     // we will split work into n + 1 groups
-    int n = a.data.size() / BLOCK_SIZE;
+    int n = (a.data.size() + b.data.size())/BLOCK_SIZE/2;
     int a_step = a.data.size()/n;
     int b_step = b.data.size()/n;
 
