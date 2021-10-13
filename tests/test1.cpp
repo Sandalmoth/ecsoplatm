@@ -1,8 +1,8 @@
-
 #include <iostream>
 #include <chrono>
 #include <string>
 #include <cmath>
+#include <cassert>
 
 #include "thread_pool.hpp"
 
@@ -16,88 +16,82 @@ public:
   }
   ~Timer() {
     auto now = std::chrono::high_resolution_clock::now();
-    std::cout << name << ": \t" << std::chrono::duration_cast<std::chrono::microseconds>(now - start_time).count() << " us" << std::endl;
+    auto delta = std::chrono::duration_cast<std::chrono::microseconds>(now - start_time).count();
+    std::cout << name << ": \t" << delta << " us" << std::endl;
   }
 private:
   std::string name;
   std::chrono::high_resolution_clock::time_point start_time;
 };
 
-struct foo {
-  void operator()(float& a) {
-    a *= sin(a) + cos(a)/a;
-    if (a < 0)
-      a = -a;
-    for (int i = 0; i < 100; ++i) {
-      a *= 1000;
-      while (a > 10.0) {
-        a = sqrt(a);
-      }
-    }
-  }
-};
-struct bar {
-  void operator()(float &a, float &b) {
-    if (a < 0)
-      a = -a;
-    for (int i = 0; i < 100; ++i) {
-      a *= 1000;
-      while (a > 10.0) {
-        a = sqrt(a);
-      }
-    }
-    a *= b;
-  }
-};
 
-void zoom(float &a) {
-  a *= sin(a) + cos(a) / a;
+const int N = 10000;
+
+
+// intentionally kinda awkward bogus maths
+// just to make it a semi slow operation
+
+void f1(double &x) {
+  x *= sin(x);
+  if (x < 0)
+    x = -x;
+  x = sqrt(x);
 }
 
+void f2(double &x, double &y) {
+  double z = x*y;
+  x = sin(z);
+  y = cos(z);
+  if (x < 0)
+    x = -x;
+  if (y < 0)
+    y = -y;
+  x = sqrt(x*y);
+  y = sqrt(x + y);
+}
+
+
 int main() {
+
   thread_pool pool;
-  // pool.sleep_duration = 10;
-  ecs::Component<float> c;
-  ecs::Component<float> c2;
 
-  for (int i = 0; i < 10000; ++i) {
-    if (i % 3 != 0)
-      c.data.push_back(std::make_pair(i, static_cast<float>(i + 1)*0.1));
-    if (i % 5 != 0)
-      c2.data.push_back(std::make_pair(i, static_cast<float>(i + 35)));
+  ecs::Component<double> st_1, st_2, mt_1, mt_2;
+  for (int i = 0; i < N; ++i) {
+    if (i % 3 != 0) {
+      st_1.data.push_back(std::make_pair(i, static_cast<double>(i + 1)*0.1));
+      mt_1.data.push_back(std::make_pair(i, static_cast<double>(i + 1)*0.1));
+    }
+    if (i % 5 != 0) {
+      st_2.data.push_back(std::make_pair(i, i + 35));
+      mt_2.data.push_back(std::make_pair(i, i + 35));
+    }
   }
 
   {
-    Timer t("single component");
-    ecs::apply<foo>(c);
+    Timer t("single-thread\t1 component");
+    ecs::apply(f1, st_1);
   }
-
   {
-    Timer t("single component mt");
-    ecs::apply<foo>(pool, c);
+    Timer t("multi-thread\t1 component");
+    ecs::apply(f1, mt_1, pool);
+    pool.wait_for_tasks();
+  }
+  {
+    Timer t("single-thread\t2 components");
+    ecs::apply(f2, st_1, st_2);
+  }
+  {
+    Timer t("multi-thread\t2 components");
+    ecs::apply(f2, mt_1, mt_2, pool);
     pool.wait_for_tasks();
   }
 
-  {
-    Timer t("single component mt function pointer");
-    ecs::apply(&zoom, pool, c);
-    pool.wait_for_tasks();
+  for (int i = 0; i < st_1.data.size(); ++i) {
+    // std::cout << st_1.data[i].second << ' ' << mt_1.data[i].second << std::endl;
+    assert (st_1.data[i] == mt_1.data[i]);
   }
-
-  {
-    Timer t("two components");
-    ecs::apply<bar>(c, c2);
+  for (int i = 0; i < st_2.data.size(); ++i) {
+    // std::cout << st_2.data[i].second << ' ' << mt_2.data[i].second << std::endl;
+    assert (st_2.data[i] == mt_2.data[i]);
   }
-
-  {
-    Timer t("two components mt");
-    ecs::apply<bar>(pool, c, c2);
-    pool.wait_for_tasks();
-  }
-
-  for (int i = 0; i < 10; ++i) {
-    if (c[i] != nullptr)
-      std::cout << *c[i] << std::endl;
-  }
-
 }
