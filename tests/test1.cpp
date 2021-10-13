@@ -24,10 +24,30 @@ private:
 };
 
 struct foo {
-  void operator()(float& a) { a *= sin(a) + cos(a)/a; }
+  void operator()(float& a) {
+    a *= sin(a) + cos(a)/a;
+    if (a < 0)
+      a = -a;
+    for (int i = 0; i < 100; ++i) {
+      a *= 1000;
+      while (a > 10.0) {
+        a = sqrt(a);
+      }
+    }
+  }
 };
 struct bar {
-  void operator()(float &a, float &b) { a *= b; }
+  void operator()(float &a, float &b) {
+    if (a < 0)
+      a = -a;
+    for (int i = 0; i < 100; ++i) {
+      a *= 1000;
+      while (a > 10.0) {
+        a = sqrt(a);
+      }
+    }
+    a *= b;
+  }
 };
 
 void zoom(float &a) {
@@ -36,11 +56,11 @@ void zoom(float &a) {
 
 int main() {
   thread_pool pool;
-  pool.sleep_duration = 10;
+  // pool.sleep_duration = 10;
   ecs::Component<float> c;
   ecs::Component<float> c2;
 
-  for (int i = 0; i < 100000; ++i) {
+  for (int i = 0; i < 10000; ++i) {
     if (i % 3 != 0)
       c.data.push_back(std::make_pair(i, static_cast<float>(i + 1)*0.1));
     if (i % 5 != 0)
@@ -67,6 +87,12 @@ int main() {
   {
     Timer t("two components");
     ecs::apply<bar>(c, c2);
+  }
+
+  {
+    Timer t("two components mt");
+    ecs::apply<bar>(pool, c, c2);
+    pool.wait_for_tasks();
   }
 
   for (int i = 0; i < 10; ++i) {

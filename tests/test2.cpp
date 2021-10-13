@@ -44,7 +44,7 @@ double bar(double& x) {
 
 int main() {
   thread_pool pool;
-  pool.sleep_duration = 10;
+  // pool.sleep_duration = 10;
 
   std::vector<double> v;
 

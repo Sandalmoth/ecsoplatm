@@ -7,7 +7,7 @@
 
 #include "thread_pool.hpp"
 
-const uint32_t BLOCK_SIZE = 1000;
+const uint32_t BLOCK_SIZE = 256;
 
 namespace ecs {
 
@@ -130,6 +130,15 @@ namespace ecs {
           walk, walk + BLOCK_SIZE);
       walk += BLOCK_SIZE;
     }
+    pool.push_task(
+                   [f](typename std::vector<std::pair<uint32_t, T>>::iterator first,
+                       typename std::vector<std::pair<uint32_t, T>>::iterator last) {
+                     while (first != last) {
+                       f(first->second);
+                       ++first;
+                     }
+                   },
+                   walk, a.data.end());
   }
 
   template <typename F, typename T, typename U>
@@ -149,6 +158,109 @@ namespace ecs {
       }
     }
   }
+
+  template <typename F, typename T, typename U>
+  void apply(thread_pool& pool, Component<T>& a, Component<U>& b) {
+    F f;
+    int n = a.data.size() / BLOCK_SIZE; // we will split work into n + 1 groups
+    int a_step = a.data.size()/n;
+    int b_step = b.data.size()/n;
+
+    std::cout << a.data.back().first << std::endl;
+    std::cout << b.data.back().first << std::endl;
+    // first, decide on what entity index breakpoints that entails
+    // first one is always 0, and last one is always based on last elements
+    std::vector<int> breakpoints;
+    breakpoints.reserve(n);
+    for (int i = 1; i < n; ++i) {
+      breakpoints.push_back((a.data[i*a_step].first + b.data[i*b_step].first) >> 1);
+    }
+
+    for (auto x: breakpoints) {
+      std::cout << x << ' ';
+    }
+    std::cout << std::endl;
+
+
+    auto it_a = a.data.begin();
+    auto it_b = b.data.begin();
+
+    for (auto breakpoint: breakpoints) {
+      // find an iterator to the entity with id = breakpoint in each list
+      auto it_a_break = std::lower_bound(
+                                         a.data.begin(), a.data.end(), breakpoint,
+                                         [](const std::pair<uint32_t, T>& a, uint32_t b) {
+                                           return a.first < b;
+                                         });
+      auto it_b_break = std::lower_bound(
+                                         b.data.begin(), b.data.end(), breakpoint,
+                                         [](const std::pair<uint32_t, T>& a, uint32_t b) {
+                                           return a.first < b;
+                                         });
+
+      // std::cout << "breakpoints\n";
+      // std::cout << it_a_break->first << std::endl;
+      // std::cout << it_b_break->first << std::endl;
+
+      pool.push_task(
+                     [&f](
+                         typename std::vector<std::pair<uint32_t, T>>::iterator a_first,
+                         typename std::vector<std::pair<uint32_t, T>>::iterator a_last,
+                         typename std::vector<std::pair<uint32_t, T>>::iterator b_first,
+                         typename std::vector<std::pair<uint32_t, T>>::iterator b_last
+                         ) {
+                       while ((a_first != a_last) && (b_first != b_last)) {
+                         if (a_first->first == b_first->first) {
+                           f(a_first->second, b_first->second);
+                           ++a_first;
+                           ++b_first;
+                         } else if (a_first->first < b_first->first) {
+                           ++a_first;
+                         } else {
+                           ++b_first;
+                         }
+                       }
+                     },
+                     it_a, it_a_break, it_b, it_b_break);
+
+      it_a = it_a_break;
+      it_b = it_b_break;
+    }
+
+    pool.push_task(
+                    [&f](
+                        typename std::vector<std::pair<uint32_t, T>>::iterator a_first,
+                        typename std::vector<std::pair<uint32_t, T>>::iterator a_last,
+                        typename std::vector<std::pair<uint32_t, T>>::iterator b_first,
+                        typename std::vector<std::pair<uint32_t, T>>::iterator b_last
+                        ) {
+                      while ((a_first != a_last) && (b_first != b_last)) {
+                        if (a_first->first == b_first->first) {
+                          f(a_first->second, b_first->second);
+                          ++a_first;
+                          ++b_first;
+                        } else if (a_first->first < b_first->first) {
+                          ++a_first;
+                        } else {
+                          ++b_first;
+                        }
+                      }
+                    },
+                    it_a, a.data.end(), it_b, b.data.end());
+
+    // while ((it_a != a.data.end()) && (it_b != b.data.end())) {
+    //   if (it_a->first == it_b->first) {
+    //     f(it_a->second, it_b->second);
+    //     ++it_a;
+    //     ++it_b;
+    //   } else if (it_a->first < it_b->first) {
+    //     ++it_a;
+    //   } else {
+    //     ++it_b;
+    //   }
+    // }
+  }
+
 
   template <typename F, typename T, typename U, typename V>
   void apply(Component<T>& a, Component<U>& b, Component<V>& c) {
