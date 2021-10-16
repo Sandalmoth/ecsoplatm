@@ -240,15 +240,25 @@ namespace ecs {
   // register function pointers
   // for destroy calls (maybe create too?)
   // so you can easily destroy an entire entity
+  // however
+  // that is not possible without an interface class for components
+  // as we cannot call the destroy member function with runtime polymorphism
+  // while it's not too hard to implement
+  // it may as well be a normal function in the main program
+  // hardcoded to delete from all the relevant components
 
-  static uint32_t get_id();
-  static uint32_t return_id();
+  class Manager {
+  public:
+    uint32_t get_id();
+    void return_id(uint32_t);
+  private:
+    uint32_t max_unused_id;
+    std::vector<uint32_t> unused_ids;
+  };
 
 #ifdef ECSOPLATM_IMPLEMENTATION
 
-  static uint32_t max_unused_id = 0;
-  static std::vector<uint32_t> unused_ids;
-  static uint32_t get_id() {
+  uint32_t Manager::get_id() {
     uint32_t id = max_unused_id;
     if (!unused_ids.empty()) {
       id = unused_ids.back();
@@ -258,7 +268,8 @@ namespace ecs {
     }
     return id;
   }
-  static uint32_t return_id(uint32_t id) {
+
+  void Manager::return_id(uint32_t id) {
     unused_ids.push_back(id);
   }
 

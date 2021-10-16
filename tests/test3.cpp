@@ -59,8 +59,10 @@ int main() {
   thread_pool pool;
 
   ecs::Component<double> c1, c2;
+  ecs::Manager manager;
+
   for (int i = 0; i < N; ++i) {
-    auto id = ecs::get_id();
+    auto id = manager.get_id();
     bool used_id = false;
     // this construction is a bit awkward
     // normally you woudn't get an id if you didn't know you had to use it
@@ -73,7 +75,7 @@ int main() {
       used_id = true;
     }
     if (!used_id) {
-      ecs::return_id(id);
+      manager.return_id(id);
     }
   }
 
