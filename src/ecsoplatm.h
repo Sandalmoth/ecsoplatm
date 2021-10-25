@@ -110,6 +110,8 @@ namespace ecs {
 
     auto walk = a.data.begin();
     int n = a.data.size() / BLOCK_SIZE;
+    if (n == 0)
+      return; // no work to do
     for (int i = 1; i < n; ++i) {
       pool.push_task(
           [f](typename std::vector<std::pair<uint32_t, T>>::iterator first,
@@ -156,6 +158,8 @@ namespace ecs {
     void apply(void (*f)(T &, U &), Component<T>& a, Component<U>& b, thread_pool &pool) {
     // we will split work into n + 1 groups
     int n = (a.data.size() + b.data.size())/BLOCK_SIZE/2;
+    if (n == 0)
+      return; // no work to do
     int a_step = a.data.size()/n;
     int b_step = b.data.size()/n;
 
@@ -180,7 +184,7 @@ namespace ecs {
                                          });
       auto it_b_break = std::lower_bound(
                                          b.data.begin(), b.data.end(), breakpoint,
-                                         [](const std::pair<uint32_t, T>& a, uint32_t b) {
+                                         [](const std::pair<uint32_t, U>& a, uint32_t b) {
                                            return a.first < b;
                                          });
 
@@ -188,8 +192,8 @@ namespace ecs {
                      [f](
                          typename std::vector<std::pair<uint32_t, T>>::iterator a_first,
                          typename std::vector<std::pair<uint32_t, T>>::iterator a_last,
-                         typename std::vector<std::pair<uint32_t, T>>::iterator b_first,
-                         typename std::vector<std::pair<uint32_t, T>>::iterator b_last
+                         typename std::vector<std::pair<uint32_t, U>>::iterator b_first,
+                         typename std::vector<std::pair<uint32_t, U>>::iterator b_last
                          ) {
                        while ((a_first != a_last) && (b_first != b_last)) {
                          if (a_first->first == b_first->first) {
@@ -214,8 +218,8 @@ namespace ecs {
                     [f](
                         typename std::vector<std::pair<uint32_t, T>>::iterator a_first,
                         typename std::vector<std::pair<uint32_t, T>>::iterator a_last,
-                        typename std::vector<std::pair<uint32_t, T>>::iterator b_first,
-                        typename std::vector<std::pair<uint32_t, T>>::iterator b_last
+                        typename std::vector<std::pair<uint32_t, U>>::iterator b_first,
+                        typename std::vector<std::pair<uint32_t, U>>::iterator b_last
                         ) {
                       while ((a_first != a_last) && (b_first != b_last)) {
                         if (a_first->first == b_first->first) {
