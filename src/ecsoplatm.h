@@ -32,6 +32,9 @@ namespace ecs {
                                     return a.first < b;
                                   });
 
+      if (it == data.end()) {
+        return nullptr;
+      }
       if (key == it->first) {
         return &(it->second);
       }
@@ -63,6 +66,11 @@ namespace ecs {
 
     void update() {
       // execute deferred destruction
+      // first, the destroy queue needs to be sorted
+      std::sort(destroy_queue.begin(), destroy_queue.end(), [](auto a, auto b) {
+        return a->first > b->first;
+      });
+      // then they can be destroyed in reverse order
       auto last = --data.end();
       for (auto it: destroy_queue) {
         // swap to last, then erase (for speed!)
@@ -109,7 +117,7 @@ namespace ecs {
              Component<T> &a, thread_pool &pool){
 
     auto walk = a.data.begin();
-    int n = a.data.size() / BLOCK_SIZE;
+    int n = a.data.size() / BLOCK_SIZE + 1;
     if (n == 0)
       return; // no work to do
     for (int i = 1; i < n; ++i) {
@@ -157,7 +165,7 @@ namespace ecs {
   template <typename T, typename U>
     void apply(void (*f)(T &, U &), Component<T>& a, Component<U>& b, thread_pool &pool) {
     // we will split work into n + 1 groups
-    int n = (a.data.size() + b.data.size())/BLOCK_SIZE/2;
+    int n = (a.data.size() + b.data.size())/BLOCK_SIZE/2 + 1;
     if (n == 0)
       return; // no work to do
     int a_step = a.data.size()/n;
@@ -238,6 +246,28 @@ namespace ecs {
   }
 
 
+  template <typename T, typename U, typename V>
+  void apply(void (*f)(T &, U &, V &), Component<T>& a, Component<U>& b, Component<V>& c) {
+    auto it_a = a.data.begin();
+    auto it_b = b.data.begin();
+    auto it_c = c.data.begin();
+    while ((it_a != a.data.end()) && (it_b != b.data.end()) && (it_c != c.data.end())) {
+      if ((it_a->first == it_b->first) && (it_a->first == it_c->first)) {
+        f(it_a->second, it_b->second, it_c->second);
+        ++it_a;
+        ++it_b;
+        ++it_c;
+      } else if ((it_a->first < it_b->first) or (it_a->first < it_c->first)) {
+        ++it_a;
+      } else if ((it_b->first < it_a->first) or (it_b->first < it_c->first)) {
+        ++it_b;
+      } else if ((it_c->first < it_a->first) or (it_c->first < it_b->first)) {
+        ++it_c;
+      }
+    }
+  }
+
+
   // IDEA
   // create a manager class
   // move id counting into it
@@ -253,6 +283,7 @@ namespace ecs {
 
   class Manager {
   public:
+    Manager();
     uint32_t get_id();
     void return_id(uint32_t);
   private:
@@ -261,6 +292,10 @@ namespace ecs {
   };
 
 #ifdef ECSOPLATM_IMPLEMENTATION
+
+  Manager::Manager() {
+    max_unused_id = 0;
+  }
 
   uint32_t Manager::get_id() {
     uint32_t id = max_unused_id;
