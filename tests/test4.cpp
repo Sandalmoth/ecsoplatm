@@ -22,9 +22,14 @@ int main() {
     });
   }
 
+  pool.push_task(0, [&v]() {
+    v[v.size() - 1] *= 3;
+  }, flag);
+
   while (!flag->test()) {
     std::cout << "yo" << std::endl;
   }
+  std::cout << "dawg" << std::endl;
 
   pool.wait_for_tasks();
 

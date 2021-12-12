@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <atomic>
 #include <cstdint>
 #include <functional>
@@ -15,10 +16,8 @@
 
 /*
  * This thread pool is essentially a rewrite and modified version of
- * SandSnip3r's version ( https://github.com/SandSnip3r/thread-pool )
- * of Barak Shashany's thread_pool.hpp library ( https://github.com/bshoshany/thread-pool ).
- * For a regular and more feature complete thread pool
- * I strongly recommend checking them out, as the code is very easy to understand.
+ * SandSnip3r's fork ( https://github.com/SandSnip3r/thread-pool ) of
+ * Barak Shashany's thread_pool.hpp library ( https://github.com/bshoshany/thread-pool ).
  *
  * This version uses a priority queue of tasks, though note that the locking
  * of the priority queue will stronly disfavour the use of many small tasks.
@@ -27,12 +26,22 @@
  * This enables us to queue tasks that will sequentiall modify the same data.
  */
 
+
 struct compare_task_priority {
   bool operator()(const std::tuple<int, std::shared_ptr<std::atomic_flag>, std::function<void()>> &a,
                   const std::tuple<int, std::shared_ptr<std::atomic_flag>, std::function<void()>> &b) {
     return std::get<0>(a) < std::get<0>(b);
   }
 };
+
+
+bool all_set(const std::vector<std::shared_ptr<std::atomic_flag>> &conditions) {
+  // test whether all conditions are true
+  // note, const ref to shared ptr is fine, since we know it is kept alive by the vector
+  return std::all_of(conditions.begin(), conditions.end(), [](const std::shared_ptr<std::atomic_flag> &x) {
+    return x->test();
+  });
+}
 
 
 class Flowpool {
@@ -49,7 +58,7 @@ public:
 
   ~Flowpool()
   {
-    /* wait_for_tasks(); */
+    wait_for_tasks();
     running = false;
     destroy_threads();
   }
@@ -66,14 +75,7 @@ public:
   template <typename F>
   std::shared_ptr<std::atomic_flag> push_task(const F &task)
   {
-    auto flag = std::make_shared<std::atomic_flag>();
-    {
-      const std::scoped_lock lock(tasks_mutex);
-      tasks.push(std::make_tuple(0, flag, std::function<void()>(task)));
-      ++n_tasks;
-    }
-    task_available_condition.notify_one();
-    return flag;
+    return push_task(0, task);
   }
 
 
@@ -87,6 +89,33 @@ public:
       ++n_tasks;
     }
     task_available_condition.notify_one();
+    return flag;
+  }
+
+
+  template <typename F, typename... C>
+  std::shared_ptr<std::atomic_flag> push_task(int priority, const F &task, C... conds)
+  {
+    auto flag = std::make_shared<std::atomic_flag>();
+    std::vector<std::shared_ptr<std::atomic_flag>> conditions {conds...};
+    if (all_set(conditions)) {
+      // all conditions are already finished
+      // so just ignore them and start a task as normal
+      {
+        const std::scoped_lock lock(tasks_mutex);
+        tasks.push(std::make_tuple(priority, flag, std::function<void()>(task)));
+        ++n_tasks;
+      }
+      task_available_condition.notify_one();
+    } else {
+      // this task cannot start yet, because it is waiting on another
+      // put it in the waiting list
+      {
+        const std::scoped_lock lock(tasks_mutex);
+        waiting_tasks.push_back(std::make_tuple(priority, flag, std::function<void()>(task), conditions));
+        ++n_tasks;
+      }
+    }
     return flag;
   }
 
@@ -125,6 +154,24 @@ private:
 
         lock.lock();
         --n_tasks;
+        // check if any waiting tasks are now possible
+        std::vector<int> activated;
+        activated.reserve(waiting_tasks.size()); // maximum capacity
+        for (size_t i = 0; i < waiting_tasks.size(); ++i) {
+          if (all_set(std::get<3>(waiting_tasks[i]))) {
+            activated.push_back(i);
+            tasks.push(std::make_tuple(std::move(std::get<0>(waiting_tasks[i])),
+                                       std::move(std::get<1>(waiting_tasks[i])),
+                                       std::move(std::get<2>(waiting_tasks[i]))));
+          }
+          task_available_condition.notify_one();
+        }
+        // then remove the ones that were started from the waiting list
+        auto last = --waiting_tasks.end();
+        for (auto i: activated) {
+          std::swap(waiting_tasks[i], *last);
+          waiting_tasks.erase(last --);
+        }
         lock.unlock();
 
         tasks_done_condition.notify_one();
@@ -147,6 +194,9 @@ private:
                       std::vector<std::tuple<int, std::shared_ptr<std::atomic_flag>, std::function<void()>>>,
                       compare_task_priority> tasks;
 
-  // std::vector<std::pair<int, std::function<void()>>> waiting_tasks;
+  std::vector<std::tuple<int,
+                         std::shared_ptr<std::atomic_flag>,
+                         std::function<void()>,
+                         std::vector<std::shared_ptr<std::atomic_flag>>>> waiting_tasks;
 };
 
