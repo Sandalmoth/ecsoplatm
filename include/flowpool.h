@@ -92,6 +92,42 @@ public:
     return flag;
   }
 
+  template <typename F, typename... C>
+  std::shared_ptr<std::atomic_flag>
+  push_task(const F &task,
+            const std::vector<std::shared_ptr<std::atomic_flag>> &conditions) {
+    return push_task(0, task, conditions);
+  }
+
+  template <typename F>
+  std::shared_ptr<std::atomic_flag>
+  push_task(int priority, const F &task,
+            const std::vector<std::shared_ptr<std::atomic_flag>> &conditions) {
+    auto flag = std::make_shared<std::atomic_flag>();
+    // std::vector<std::shared_ptr<std::atomic_flag>> conditions{conds...};
+    if (all_set(conditions)) {
+      // all conditions are already finished
+      // so just ignore them and start a task as normal
+      {
+        const std::scoped_lock lock(tasks_mutex);
+        tasks.push(
+            std::make_tuple(priority, flag, std::function<void()>(task)));
+        ++n_tasks;
+      }
+      task_available_condition.notify_one();
+    } else {
+      // this task cannot start yet, because it is waiting on another
+      // put it in the waiting list
+      {
+        const std::scoped_lock lock(tasks_mutex);
+        waiting_tasks.push_back(std::make_tuple(
+            priority, flag, std::function<void()>(task), conditions));
+        ++n_tasks;
+      }
+    }
+    return flag;
+  }
+
 
   template <typename F, typename... C>
   std::shared_ptr<std::atomic_flag> push_task(const F &task, C... conds)
@@ -103,27 +139,8 @@ public:
   template <typename F, typename... C>
   std::shared_ptr<std::atomic_flag> push_task(int priority, const F &task, C... conds)
   {
-    auto flag = std::make_shared<std::atomic_flag>();
     std::vector<std::shared_ptr<std::atomic_flag>> conditions {conds...};
-    if (all_set(conditions)) {
-      // all conditions are already finished
-      // so just ignore them and start a task as normal
-      {
-        const std::scoped_lock lock(tasks_mutex);
-        tasks.push(std::make_tuple(priority, flag, std::function<void()>(task)));
-        ++n_tasks;
-      }
-      task_available_condition.notify_one();
-    } else {
-      // this task cannot start yet, because it is waiting on another
-      // put it in the waiting list
-      {
-        const std::scoped_lock lock(tasks_mutex);
-        waiting_tasks.push_back(std::make_tuple(priority, flag, std::function<void()>(task), conditions));
-        ++n_tasks;
-      }
-    }
-    return flag;
+    return push_task(priority, task, conditions);
   }
 
 
