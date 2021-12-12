@@ -187,8 +187,12 @@ public:
     {
         {
             const std::scoped_lock lock(tasks_mutex);
+            std::cout << "yo" << std::endl;
+            std::cout << &tasks.top() << std::endl;
             tasks.push(std::make_pair(0, std::function<void()>(task)));
+            std::cout << "dawg" << std::endl;
             tasks_total++;
+            std::cout << "zoom" << std::endl;
         }
         task_available_condition_variable.notify_one();
     }
@@ -370,9 +374,13 @@ private:
         while (running)
         {
             std::unique_lock<std::mutex> lock(tasks_mutex);
+            std::cout << "1" << std::endl;
+            std::cout << tasks.empty() << ' ' << running << std::endl;
             task_available_condition_variable.wait(lock, [&]{ return !tasks.empty() || !running; });
+            std::cout << "2" << std::endl;
             if (running && !paused)
             {
+              std::cout << tasks.top().first << std::endl;
                 auto task = std::move(tasks.top().second);
                 tasks.pop();
                 lock.unlock();
