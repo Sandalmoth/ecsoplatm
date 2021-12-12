@@ -4,7 +4,7 @@
 #include <cmath>
 #include <cassert>
 
-#include "thread_pool.hpp"
+#include "priority_thread_pool.h"
 
 #include "../src/ecsoplatm.h"
 

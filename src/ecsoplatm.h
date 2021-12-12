@@ -6,7 +6,9 @@
 
 #include <iostream>
 
-#include "thread_pool.hpp"
+#include "priority_thread_pool.h"
+// #include "thread_pool.hpp"
+
 
 // chunk arrays into jobs of this size
 // when running multithreaded versions
@@ -104,8 +106,13 @@ namespace ecs {
 
   template <typename T>
     void apply(void (*f)(T &), Component<T> &a) {
+    // for (auto it_a = a.data.begin(); it_a != a.data.end(); ++it_a) {
+    //   f(it_a->second);
+    // }
     auto it_a = a.data.begin();
     while (it_a != a.data.end()) {
+      std::cout << it_a - a.data.begin() << ' ' << a.data.end() - it_a << std::endl;
+      std::cout << it_a->second << std::endl;
       f(it_a->second);
       ++it_a;
     }

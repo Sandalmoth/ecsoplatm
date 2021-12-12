@@ -4,9 +4,12 @@
 #include <cmath>
 #include <cassert>
 
-#include "thread_pool.hpp"
+#include "priority_thread_pool.h"
+// #include "thread_pool.hpp"
 
 #include "../src/ecsoplatm.h"
+
+using std::endl;
 
 class Timer {
 public:
@@ -23,7 +26,6 @@ private:
   std::string name;
   std::chrono::high_resolution_clock::time_point start_time;
 };
-
 
 const int N = 10000;
 
@@ -66,6 +68,8 @@ int main() {
       mt_2.data.push_back(std::make_pair(i, i + 35));
     }
   }
+
+  std::cout << st_1.data.size() << endl;
 
   {
     Timer t("single-thread\t1 component");
