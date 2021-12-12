@@ -9,14 +9,28 @@
 #include <mutex>
 #include <queue>
 #include <thread>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 
+/*
+ * This thread pool is essentially a rewrite and modified version of
+ * SandSnip3r's version ( https://github.com/SandSnip3r/thread-pool )
+ * of Barak Shashany's thread_pool.hpp library ( https://github.com/bshoshany/thread-pool ).
+ * For a regular and more feature complete thread pool
+ * I strongly recommend checking them out, as the code is very easy to understand.
+ *
+ * This version uses a priority queue of tasks, though note that the locking
+ * of the priority queue will stronly disfavour the use of many small tasks.
+ * It also implements a waiting system where a pushed task can be required
+ * to wait for some prior task to finish before entering the work queue.
+ * This enables us to queue tasks that will sequentiall modify the same data.
+ */
 
 struct compare_task_priority {
-  bool operator()(const std::pair<int, std::function<void()>> &a,
-                  const std::pair<int, std::function<void()>> &b) {
-    return a.first < b.first;
+  bool operator()(const std::tuple<int, std::shared_ptr<std::atomic_flag>, std::function<void()>> &a,
+                  const std::tuple<int, std::shared_ptr<std::atomic_flag>, std::function<void()>> &b) {
+    return std::get<0>(a) < std::get<0>(b);
   }
 };
 
@@ -50,14 +64,30 @@ public:
 
 
   template <typename F>
-  void push_task(const F &task)
+  std::shared_ptr<std::atomic_flag> push_task(const F &task)
   {
+    auto flag = std::make_shared<std::atomic_flag>();
     {
       const std::scoped_lock lock(tasks_mutex);
-      tasks.push(std::make_pair(0, std::function<void()>(task)));
+      tasks.push(std::make_tuple(0, flag, std::function<void()>(task)));
       ++n_tasks;
     }
     task_available_condition.notify_one();
+    return flag;
+  }
+
+
+  template <typename F>
+  std::shared_ptr<std::atomic_flag> push_task(int priority, const F &task)
+  {
+    auto flag = std::make_shared<std::atomic_flag>();
+    {
+      const std::scoped_lock lock(tasks_mutex);
+      tasks.push(std::make_tuple(priority, flag, std::function<void()>(task)));
+      ++n_tasks;
+    }
+    task_available_condition.notify_one();
+    return flag;
   }
 
 
@@ -85,11 +115,13 @@ private:
       std::unique_lock<std::mutex> lock(tasks_mutex);
       task_available_condition.wait(lock, [&]{ return !tasks.empty() || !running; });
       if (running) {
-        auto task = std::move(tasks.top().second);
+        auto task = std::move(std::get<2>(tasks.top()));
+        auto flag = std::move(std::get<1>(tasks.top()));
         tasks.pop();
         lock.unlock();
 
         task();
+        flag->test_and_set();
 
         lock.lock();
         --n_tasks;
@@ -111,10 +143,10 @@ private:
   std::atomic<bool> running {true};
   int n_tasks {0}; // total number of waiting, queued, and running tasks
 
-  std::priority_queue<std::pair<int, std::function<void()>>,
-                      std::vector<std::pair<int, std::function<void()>>>,
+  std::priority_queue<std::tuple<int, std::shared_ptr<std::atomic_flag>, std::function<void()>>,
+                      std::vector<std::tuple<int, std::shared_ptr<std::atomic_flag>, std::function<void()>>>,
                       compare_task_priority> tasks;
 
-  std::vector<std::pair<int, std::function<void()>>> waiting_tasks;
+  // std::vector<std::pair<int, std::function<void()>>> waiting_tasks;
 };
 

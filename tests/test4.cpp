@@ -5,7 +5,7 @@
 // #include "thread_pool.hpp"
 
 int main() {
-  Flowpool pool;
+  Flowpool pool(1);
 
   std::vector<int> v = {1, 2, 3, 4, 5};
 
@@ -14,11 +14,16 @@ int main() {
   }
   std::cout << std::endl;
 
+  std::shared_ptr<std::atomic_flag> flag;
 
   for (int i = 0; i < v.size(); ++i) {
-    pool.push_task([&v, i]() {
+    flag = pool.push_task([&v, i]() {
       v[i] += 3;
     });
+  }
+
+  while (!flag->test()) {
+    std::cout << "yo" << std::endl;
   }
 
   pool.wait_for_tasks();
