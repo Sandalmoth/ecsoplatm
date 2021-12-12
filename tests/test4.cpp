@@ -22,7 +22,7 @@ int main() {
     });
   }
 
-  pool.push_task(0, [&v]() {
+  pool.push_task(1, [&v]() {
     v[v.size() - 1] *= 3;
   }, flag);
 

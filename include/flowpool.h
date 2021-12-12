@@ -94,6 +94,13 @@ public:
 
 
   template <typename F, typename... C>
+  std::shared_ptr<std::atomic_flag> push_task(const F &task, C... conds)
+  {
+    return push_task(0, task, conds...);
+  }
+
+
+  template <typename F, typename... C>
   std::shared_ptr<std::atomic_flag> push_task(int priority, const F &task, C... conds)
   {
     auto flag = std::make_shared<std::atomic_flag>();
