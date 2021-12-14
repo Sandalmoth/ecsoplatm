@@ -82,11 +82,13 @@ namespace ecs {
       int n = a.data.size() / BLOCK_SIZE + 1;
       int i = 0;
       while (i < a.data.size()) {
-        pool.push_task(priority, [f, i, last]() {
-          while (i != last) {
-            // Somehow capture everything needed to address data
-            // FIXME
-            ++i;
+        pool.push_task(priority, [f, first = a.data.begin() + i,
+                                  last = a.data.begin() + std::min(a.data.size(),
+                                                                   static_cast<size_t>(i + BLOCK_SIZE))]() {
+          auto it = first;
+          while (first != last) {
+            f(it->second);
+            ++it;
           }
         });
       }
