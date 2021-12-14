@@ -1,27 +1,65 @@
 #pragma once
 
 #include "flowpool.h"
+#include "interval_map.h"
 
 
 namespace ecs {
 
+  const uint32_t BLOCK_SIZE = 128;
 
   struct ComponentInterface {
     virtual void update() = 0;
     void destroy(uint32_t);
 
     std::vector<uint32_t> destroy_queue;
+    IntervalMap<std::shared_ptr<std::atomic_flag>> waiting_flags;
   };
 
 
   template <typename T>
   struct Component : ComponentInterface {
-    void update() {}
+
+    void create(uint32_t entity, T value) {
+      create_queue.push_back(std::make_pair(entity, value));
+    }
+
+    void update() {
+      // execute deferred destruction
+      // first, the destroy queue needs to be sorted
+      std::sort(destroy_queue.begin(), destroy_queue.end());
+      // then they can be destroyed in reverse order
+      auto last = --data.end();
+      for (auto i: destroy_queue) {
+        // swap to last, then erase (for speed!)
+        std::swap(data[i], (*last));
+        data.erase(last--);
+      }
+      destroy_queue.clear();
+      // execute deferred creation
+      for (auto &ev: create_queue) {
+        // FIXME? it's not great that this fails silently
+        // if the entity already exists
+        data.push_back(std::move(ev));
+      }
+      create_queue.clear();
+      // sort by entity id
+      std::sort(data.begin(), data.end(),
+                [](const std::pair<uint32_t, T> &a,
+                   const std::pair<uint32_t, T> &b) {
+                  return a.first < b.first;
+                });
+    }
+
+    std::vector<std::pair<uint32_t, T>> data;
+    std::vector<std::pair<uint32_t, T>> create_queue;
+
   };
 
 
   struct Manager {
     uint32_t max_unused_id;
+    int priority;
     Flowpool pool;
     std::vector<ComponentInterface *> components;
     std::vector<uint32_t> unused_ids;
@@ -35,6 +73,27 @@ namespace ecs {
     template <typename T> void enlist(Component<T> *);
     void update();
     void destroy(uint32_t);
+
+    template <typename A>
+    void apply(void (*f)(A &), Component<A> &a) {
+      if (a.data.size() == 0)
+        return; // no work to do
+
+      int n = a.data.size() / BLOCK_SIZE + 1;
+      int i = 0;
+      while (i < a.data.size()) {
+        pool.push_task(priority, [f, i, last]() {
+          while (i != last) {
+            // Somehow capture everything needed to address data
+            // FIXME
+            ++i;
+          }
+        });
+      }
+
+      ++priority;
+    }
+
   };
 
 
@@ -48,9 +107,11 @@ void ecs::ComponentInterface::destroy(uint32_t id) {
 }
 
 ecs::Manager::Manager()
-  : max_unused_id(0) {}
+  : max_unused_id(0)
+  , priority(0) {}
 ecs::Manager::Manager(int n_threads)
   : max_unused_id(0)
+  , priority(0)
   , pool(n_threads) {}
 
 uint32_t ecs::Manager::get_id() {
@@ -64,7 +125,9 @@ uint32_t ecs::Manager::get_id() {
   return id;
 }
 
-void ecs::Manager::return_id(uint32_t id) { unused_ids.push_back(id); }
+void ecs::Manager::return_id(uint32_t id) {
+  unused_ids.push_back(id);
+}
 
 template <typename T>
 void ecs::Manager::enlist(Component<T> *component) {
@@ -81,6 +144,16 @@ void ecs::Manager::destroy(uint32_t id) {
   for (auto c: components) {
     c->destroy(id);
   }
+}
+
+template <typename T>
+std::ostream &operator<<(std::ostream &out, ecs::Component<T> &c) {
+  out << '[';
+  for (auto &[id, value]: c.data) {
+    out << '(' << id << ' ' << value << ')';
+  }
+  out << ']';
+  return out;
 }
 
 #endif // ECSOPLATM_IMPLEMENTATION
