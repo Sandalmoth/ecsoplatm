@@ -40,14 +40,25 @@ struct IntervalMap {
     auto next = it;
     ++next;
     while (next != data.end()) {
-      ++next;
       if (std::get<1>(*next) <= last) {
         // we've entirely overwritten this one
         next = data.erase(next);
+        --next;
       } else if (std::get<0>(*next) < last) {
         std::get<0>(*next) = last;
       }
+      ++next;
     }
+  }
+
+  std::vector<T> get(int first, int last) {
+    std::vector<T> result;
+    for (auto &[f, l, v]: data) {
+      if (!(last <= f) & !(first >= l)) {
+        result.push_back(v);
+      }
+    }
+    return result;
   }
 
   std::vector<std::tuple<int, int, T>> data;
