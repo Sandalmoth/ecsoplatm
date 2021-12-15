@@ -116,6 +116,59 @@ namespace ecs {
 
       auto it_a = a.data.begin();
       auto it_b = b.data.begin();
+
+      for (auto breakpoint: breaks) {
+        // find an iterator to the entity with id = breakpoint in each list
+        auto it_a_break =
+            std::lower_bound(a.data.begin(), a.data.end(), breakpoint,
+                             [](const std::pair<uint32_t, A> &a, uint32_t b) {
+                               return a.first < b;
+                             });
+        auto it_b_break =
+            std::lower_bound(b.data.begin(), b.data.end(), breakpoint,
+                             [](const std::pair<uint32_t, B> &a, uint32_t b) {
+                               return a.first < b;
+                             });
+
+        pool.push_task(
+            priority, [f,
+                       afirst = it_a, alast = it_a_break,
+                       bfirst = it_b, blast = it_b_break]() {
+              auto it_a = afirst;
+              auto it_b = bfirst;
+              while ((it_a != alast) && (it_b != blast)) {
+                if (it_a->first == it_b->first) {
+                  f(it_a->second, it_b->second);
+                  ++it_a;
+                  ++it_b;
+                } else if (it_a->first < it_b->first) {
+                  ++it_a;
+                } else {
+                  ++it_b;
+                }
+              }
+            });
+
+        it_a = it_a_break;
+        it_b = it_b_break;
+      }
+
+      pool.push_task(priority, [f, afirst = it_a, alast = a.data.end(),
+                                bfirst = it_b, blast = b.data.end()]() {
+        auto it_a = afirst;
+        auto it_b = bfirst;
+        while ((it_a != alast) && (it_b != blast)) {
+          if (it_a->first == it_b->first) {
+            f(it_a->second, it_b->second);
+            ++it_a;
+            ++it_b;
+          } else if (it_a->first < it_b->first) {
+            ++it_a;
+          } else {
+            ++it_b;
+          }
+        }
+      });
     }
 
   };
