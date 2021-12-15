@@ -73,6 +73,7 @@ namespace ecs {
     template <typename T> void enlist(Component<T> *);
     void update();
     void destroy(uint32_t);
+    void wait();
 
     template <typename A>
     void apply(void (*f)(A &), Component<A> &a) {
@@ -82,15 +83,17 @@ namespace ecs {
       int n = a.data.size() / BLOCK_SIZE + 1;
       int i = 0;
       while (i < a.data.size()) {
-        pool.push_task(priority, [f, first = a.data.begin() + i,
+        pool.push_task(priority, [f,
+                                  first = a.data.begin() + i,
                                   last = a.data.begin() + std::min(a.data.size(),
                                                                    static_cast<size_t>(i + BLOCK_SIZE))]() {
           auto it = first;
-          while (first != last) {
+          while (it != last) {
             f(it->second);
             ++it;
           }
         });
+        i += BLOCK_SIZE;
       }
 
       ++priority;
@@ -146,6 +149,10 @@ void ecs::Manager::destroy(uint32_t id) {
   for (auto c: components) {
     c->destroy(id);
   }
+}
+
+void ecs::Manager::wait() {
+  pool.wait_for_tasks();
 }
 
 template <typename T>
