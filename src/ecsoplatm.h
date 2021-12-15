@@ -99,6 +99,25 @@ namespace ecs {
       ++priority;
     }
 
+    template <typename A, typename B>
+    void apply(void (*f)(A &, B &), Component<A> &a, Component<B> &b) {
+      if ((a.data.size() == 0) || (b.data.size() == 0))
+        return;
+
+      int n = (a.data.size() + b.data.size())/BLOCK_SIZE/2 + 1;
+      int a_step = a.data.size()/n;
+      int b_step = b.data.size()/n;
+
+      std::vector<int> breaks;
+      breaks.reserve(n);
+      for (int i = 1; i < n; ++i) {
+        breaks.push_back((a.data[i*a_step].first + b.data[i*b_step].first) / 2);
+      }
+
+      auto it_a = a.data.begin();
+      auto it_b = b.data.begin();
+    }
+
   };
 
 

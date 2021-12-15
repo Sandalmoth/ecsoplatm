@@ -39,6 +39,8 @@ int main() {
 
   ecs.apply(&bar, b);
   ecs.wait();
+  ecs.apply(&foo, a, b);
+  ecs.wait();
 
   std::cout << a << std::endl;
   std::cout << b << std::endl;
