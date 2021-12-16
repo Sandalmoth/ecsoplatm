@@ -192,7 +192,7 @@ private:
         auto last = --waiting_tasks.end();
         for (auto i: activated) {
           std::swap(waiting_tasks[i], *last);
-          waiting_tasks.erase(last --);
+          waiting_tasks.erase(last--);
         }
         lock.unlock();
 
