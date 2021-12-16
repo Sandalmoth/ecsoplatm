@@ -168,8 +168,8 @@ private:
       std::unique_lock<std::mutex> lock(tasks_mutex);
       task_available_condition.wait(lock, [&]{ return !tasks.empty() || !running; });
       if (running) {
-        auto task = std::move(std::get<2>(tasks.top()));
-        auto flag = std::move(std::get<1>(tasks.top()));
+        auto task = std::get<2>(tasks.top());
+        auto flag = std::get<1>(tasks.top());
         tasks.pop();
         lock.unlock();
 
