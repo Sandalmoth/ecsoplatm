@@ -80,9 +80,8 @@ namespace ecs {
       if (a.data.size() == 0)
         return; // no work to do
 
-      int n = a.data.size() / BLOCK_SIZE + 1;
       int i = 0;
-      while (i < a.data.size()) {
+      while (static_cast<size_t>(i) < a.data.size()) {
         int j = std::min(a.data.size(), static_cast<size_t>(i + BLOCK_SIZE));
         auto wait = a.waiting_flags.get(i, j);
         auto flag = pool.push_task(priority, [f,

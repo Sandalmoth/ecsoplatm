@@ -168,8 +168,7 @@ private:
       std::unique_lock<std::mutex> lock(tasks_mutex);
       task_available_condition.wait(lock, [&]{ return !tasks.empty() || !running; });
       if (running) {
-        auto task = std::get<2>(tasks.top());
-        auto flag = std::get<1>(tasks.top());
+        auto [priority, flag, task] = tasks.top();
         tasks.pop();
         lock.unlock();
 
@@ -184,9 +183,8 @@ private:
         for (size_t i = 0; i < waiting_tasks.size(); ++i) {
           if (all_set(std::get<3>(waiting_tasks[i]))) {
             activated.push_back(i);
-            tasks.push(std::make_tuple(std::move(std::get<0>(waiting_tasks[i])),
-                                       std::move(std::get<1>(waiting_tasks[i])),
-                                       std::move(std::get<2>(waiting_tasks[i]))));
+            auto [priority, flag, task, flags] = waiting_tasks[i];
+            tasks.push(std::make_tuple(priority, flag, task));
           }
           task_available_condition.notify_one();
         }
