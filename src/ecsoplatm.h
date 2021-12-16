@@ -6,7 +6,7 @@
 
 namespace ecs {
 
-  const uint32_t BLOCK_SIZE = 128;
+  const uint32_t BLOCK_SIZE = 2;
 
   struct ComponentInterface {
     virtual void update() = 0;
@@ -83,16 +83,18 @@ namespace ecs {
       int n = a.data.size() / BLOCK_SIZE + 1;
       int i = 0;
       while (i < a.data.size()) {
-        pool.push_task(priority, [f,
+        int j = std::min(a.data.size(), static_cast<size_t>(i + BLOCK_SIZE));
+        auto wait = a.waiting_flags.get(i, j);
+        auto flag = pool.push_task(priority, [f,
                                   first = a.data.begin() + i,
-                                  last = a.data.begin() + std::min(a.data.size(),
-                                                                   static_cast<size_t>(i + BLOCK_SIZE))]() {
+                                  last = a.data.begin() + j]() {
           auto it = first;
           while (it != last) {
             f(it->second);
             ++it;
           }
         });
+        a.waiting_flags.set(i, j, flag);
         i += BLOCK_SIZE;
       }
 
@@ -130,7 +132,13 @@ namespace ecs {
                                return a.first < b;
                              });
 
-        pool.push_task(
+        auto wait_a = a.waiting_flags.get(it_a - a.data.begin(),
+                                          it_a_break - a.data.begin());
+        auto wait_b = b.waiting_flags.get(it_b - b.data.begin(),
+                                          it_b_break - b.data.begin());
+        wait_a.insert(wait_a.end(), wait_b.begin(), wait_b.end());
+
+        auto flag = pool.push_task(
             priority, [f,
                        afirst = it_a, alast = it_a_break,
                        bfirst = it_b, blast = it_b_break]() {
@@ -147,13 +155,26 @@ namespace ecs {
                   ++it_b;
                 }
               }
-            });
+            }, wait_a);
+
+        a.waiting_flags.set(it_a - a.data.begin(),
+                            it_a_break - a.data.begin(),
+                            flag);
+        b.waiting_flags.set(it_b - b.data.begin(),
+                            it_b_break - b.data.begin(),
+                            flag);
 
         it_a = it_a_break;
         it_b = it_b_break;
       }
 
-      pool.push_task(priority, [f, afirst = it_a, alast = a.data.end(),
+      auto wait_a = a.waiting_flags.get(it_a - a.data.begin(),
+                                        a.data.size());
+      auto wait_b = b.waiting_flags.get(it_b - b.data.begin(),
+                                        b.data.size());
+      wait_a.insert(wait_a.end(), wait_b.begin(), wait_b.end());
+
+      auto flag = pool.push_task(priority, [f, afirst = it_a, alast = a.data.end(),
                                 bfirst = it_b, blast = b.data.end()]() {
         auto it_a = afirst;
         auto it_b = bfirst;
@@ -169,6 +190,13 @@ namespace ecs {
           }
         }
       });
+
+      a.waiting_flags.set(it_a - a.data.begin(),
+                          a.data.size(),
+                          flag);
+      b.waiting_flags.set(it_b - b.data.begin(),
+                          b.data.size(),
+                          flag);
     }
 
   };
