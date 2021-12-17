@@ -184,6 +184,7 @@ private:
 
       task_available_condition.wait(lock, [&]{ return !tasks.empty() || !running; });
       if (running) {
+        std::cout << "starting a task" << std::endl;
         auto [priority, flag, task] = tasks.top();
         tasks.pop();
         lock.unlock();
@@ -220,6 +221,7 @@ private:
         }
         lock.unlock();
 
+        std::cout << "notified finished task" << std::endl;
         tasks_done_condition.notify_one();
       }
     }
