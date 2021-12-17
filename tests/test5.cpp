@@ -14,6 +14,7 @@ void bar(float &a) {
 
 int main() {
   ecs::Manager ecs(1);
+
   ecs::Component<float> a;
   ecs::Component<float> b;
   ecs.enlist(&a);
@@ -31,13 +32,13 @@ int main() {
   a.destroy(3);
   b.destroy(8); // FIXME not all numbers work
   ecs.destroy(6);
-  // ecs.destroy(99);
   ecs.update();
 
   std::cout << a << std::endl;
   std::cout << b << std::endl;
 
   ecs.apply(&bar, b);
+  ecs.wait(); // this fixes the segfault, but is not desirable
   ecs.apply(&foo, a, b);
   ecs.wait();
 

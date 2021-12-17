@@ -105,15 +105,24 @@ namespace ecs {
       if ((a.data.size() == 0) || (b.data.size() == 0))
         return;
 
-      int n = (a.data.size() + b.data.size())/BLOCK_SIZE/2 + 1;
+      int n = (a.data.size() + b.data.size())/BLOCK_SIZE/2;
+      n = std::max(n, 1);
       int a_step = a.data.size()/n;
       int b_step = b.data.size()/n;
+
+      std::cout << n << std::endl;
+      std::cout << a_step << ' ' << b_step << std::endl;
 
       std::vector<int> breaks;
       breaks.reserve(n);
       for (int i = 1; i < n; ++i) {
         breaks.push_back((a.data[i*a_step].first + b.data[i*b_step].first) / 2);
       }
+
+      for (auto brk: breaks) {
+        std::cout << brk << ' ';
+      }
+      std::cout << std::endl;
 
       auto it_a = a.data.begin();
       auto it_b = b.data.begin();
@@ -196,6 +205,11 @@ namespace ecs {
       b.waiting_flags.set(it_b - b.data.begin(),
                           b.data.size(),
                           flag);
+
+      std::cout << a.waiting_flags << std::endl;
+      std::cout << b.waiting_flags << std::endl;
+
+      ++priority;
     }
 
   };
