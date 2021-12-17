@@ -124,6 +124,9 @@ namespace ecs {
       }
       std::cout << std::endl;
 
+      std::cout << a.waiting_flags << std::endl;
+      std::cout << b.waiting_flags << std::endl;
+
       auto it_a = a.data.begin();
       auto it_b = b.data.begin();
 
@@ -145,6 +148,11 @@ namespace ecs {
         auto wait_b = b.waiting_flags.get(it_b - b.data.begin(),
                                           it_b_break - b.data.begin());
         wait_a.insert(wait_a.end(), wait_b.begin(), wait_b.end());
+
+        for (auto &w : wait_a) {
+          std::cout << w << "->" << w->test() << ' ';
+        }
+        std::cout << std::endl;
 
         auto flag = pool.push_task(
             priority, [f,
@@ -182,6 +190,11 @@ namespace ecs {
                                         b.data.size());
       wait_a.insert(wait_a.end(), wait_b.begin(), wait_b.end());
 
+      for (auto &w: wait_a) {
+        std::cout << w << "->" << w->test() << ' ';
+      }
+      std::cout << std::endl;
+
       auto flag = pool.push_task(priority, [f, afirst = it_a, alast = a.data.end(),
                                 bfirst = it_b, blast = b.data.end()]() {
         auto it_a = afirst;
@@ -197,7 +210,7 @@ namespace ecs {
             ++it_b;
           }
         }
-      });
+      }, wait_a);
 
       a.waiting_flags.set(it_a - a.data.begin(),
                           a.data.size(),
@@ -266,6 +279,9 @@ void ecs::Manager::destroy(uint32_t id) {
 
 void ecs::Manager::wait() {
   pool.wait_for_tasks();
+  for (auto c : components) {
+    c->waiting_flags.data.clear();
+  }
 }
 
 template <typename T>

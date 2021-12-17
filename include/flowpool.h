@@ -104,6 +104,12 @@ public:
   push_task(int priority, const F &task,
             const std::vector<std::shared_ptr<std::atomic_flag>> &conditions) {
     auto flag = std::make_shared<std::atomic_flag>();
+
+    for (auto &w : conditions) {
+      std::cout << w << "->" << w->test() << ' ';
+    }
+    std::cout << "tested for task yielding " << all_set(conditions) << std::endl;
+
     // std::vector<std::shared_ptr<std::atomic_flag>> conditions{conds...};
     if (all_set(conditions)) {
       // all conditions are already finished

@@ -38,7 +38,7 @@ int main() {
   std::cout << b << std::endl;
 
   ecs.apply(&bar, b);
-  ecs.wait(); // this fixes the segfault, but is not desirable
+  // ecs.wait(); // this fixes the segfault, but is not desirable
   ecs.apply(&foo, a, b);
   ecs.wait();
 
