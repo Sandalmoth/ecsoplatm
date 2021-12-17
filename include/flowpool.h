@@ -123,12 +123,14 @@ public:
       task_available_condition.notify_one();
     } else {
       // this task cannot start yet, because it is waiting on another
+      std::cout << "  added to waiting list ";
       // put it in the waiting list
       {
         const std::scoped_lock lock(tasks_mutex);
         waiting_tasks.push_back(std::make_tuple(
             priority, flag, std::function<void()>(task), conditions));
         ++n_tasks;
+        std::cout << waiting_tasks.size() << std::endl;
       }
     }
     return flag;
@@ -172,6 +174,11 @@ private:
   void worker() {
     while (running) {
       std::unique_lock<std::mutex> lock(tasks_mutex);
+
+      std::cout << "worker loop start " << tasks.size() << " available "
+                << waiting_tasks.size() << " waiting "
+                << n_tasks << " total" << std::endl;
+
       task_available_condition.wait(lock, [&]{ return !tasks.empty() || !running; });
       if (running) {
         auto [priority, flag, task] = tasks.top();
@@ -187,6 +194,14 @@ private:
         std::vector<int> activated;
         activated.reserve(waiting_tasks.size()); // maximum capacity
         for (size_t i = 0; i < waiting_tasks.size(); ++i) {
+
+          for (auto &w : std::get<3>(waiting_tasks[i])) {
+            std::cout << w << "->" << w->test() << ' ';
+          }
+          std::cout << "tested for activation yielding "
+                    << all_set(std::get<3>(waiting_tasks[i]))
+                    << std::endl;
+
           if (all_set(std::get<3>(waiting_tasks[i]))) {
             activated.push_back(i);
             auto [priority, flag, task, flags] = waiting_tasks[i];

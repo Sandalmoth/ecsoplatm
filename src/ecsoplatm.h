@@ -110,8 +110,8 @@ namespace ecs {
       int a_step = a.data.size()/n;
       int b_step = b.data.size()/n;
 
-      std::cout << n << std::endl;
-      std::cout << a_step << ' ' << b_step << std::endl;
+      std::cout << n << " blocks" << std::endl;
+      std::cout << a_step << ' ' << b_step << " steps" << std::endl;
 
       std::vector<int> breaks;
       breaks.reserve(n);
@@ -122,7 +122,7 @@ namespace ecs {
       for (auto brk: breaks) {
         std::cout << brk << ' ';
       }
-      std::cout << std::endl;
+      std::cout << "breaks" << std::endl;
 
       std::cout << a.waiting_flags << std::endl;
       std::cout << b.waiting_flags << std::endl;
