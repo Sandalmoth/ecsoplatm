@@ -65,8 +65,11 @@ public:
 
 
   void wait_for_tasks() {
+    std::cout << "trying to wait for tasks" << std::endl;
     std::unique_lock<std::mutex> lock(tasks_mutex);
+    std::cout << "created a unique lock" << std::endl;
     tasks_done_condition.wait(lock, [&] {
+      std::cout << "waiting on lock " << n_tasks << std::endl;
       return (n_tasks == 0);
     });
   }
