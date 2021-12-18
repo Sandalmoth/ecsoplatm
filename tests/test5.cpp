@@ -3,17 +3,19 @@
 
 
 void foo(float &a, float &b) {
+  std::cout << "foo on " << a << ' ' << b << std::endl;
   a *= b;
   b -= a;
 }
 
 void bar(float &a) {
+  std::cout << "bar on " << a << std::endl;
   a += 1.0f;
 }
 
 
 int main() {
-  ecs::Manager ecs(1);
+  ecs::Manager ecs;
 
   ecs::Component<float> a;
   ecs::Component<float> b;

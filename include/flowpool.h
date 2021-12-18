@@ -135,6 +135,7 @@ public:
         ++n_tasks;
         std::cout << waiting_tasks.size() << std::endl;
       }
+      task_available_condition.notify_one();
     }
     return flag;
   }
@@ -184,16 +185,18 @@ private:
 
       task_available_condition.wait(lock, [&]{ return !tasks.empty() || !running; });
       if (running) {
-        std::cout << "starting a task" << std::endl;
-        auto [priority, flag, task] = tasks.top();
-        tasks.pop();
-        lock.unlock();
+        if (tasks.size() > 0) {
+          std::cout << "starting a task" << std::endl;
+          auto [priority, flag, task] = tasks.top();
+          tasks.pop();
+          lock.unlock();
 
-        task();
-        flag->test_and_set();
+          task();
+          flag->test_and_set();
 
-        lock.lock();
-        --n_tasks;
+          lock.lock();
+          --n_tasks;
+        }
         // check if any waiting tasks are now possible
         std::vector<int> activated;
         activated.reserve(waiting_tasks.size()); // maximum capacity
