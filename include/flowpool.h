@@ -85,7 +85,7 @@ public:
   template <typename F>
   std::shared_ptr<std::atomic<bool>> push_task(int priority, const F &task)
   {
-    auto flag = std::make_shared<std::atomic<bool>>();
+    auto flag = std::make_shared<std::atomic<bool>>(false);
     {
       const std::scoped_lock lock(tasks_mutex);
       tasks.push(std::make_tuple(priority, flag, std::function<void()>(task)));
@@ -106,7 +106,7 @@ public:
   std::shared_ptr<std::atomic<bool>>
   push_task(int priority, const F &task,
             std::vector<std::shared_ptr<std::atomic<bool>>> conditions) {
-    auto flag = std::make_shared<std::atomic<bool>>();
+    auto flag = std::make_shared<std::atomic<bool>>(false);
 
     for (auto &w : conditions) {
       std::cout << w << "->" << w->load() << ' ';
