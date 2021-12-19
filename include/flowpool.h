@@ -28,18 +28,18 @@
 
 
 struct compare_task_priority {
-  bool operator()(const std::tuple<int, std::shared_ptr<std::atomic_flag>, std::function<void()>> &a,
-                  const std::tuple<int, std::shared_ptr<std::atomic_flag>, std::function<void()>> &b) {
+  bool operator()(const std::tuple<int, std::shared_ptr<std::atomic<bool>>, std::function<void()>> &a,
+                  const std::tuple<int, std::shared_ptr<std::atomic<bool>>, std::function<void()>> &b) {
     return std::get<0>(a) < std::get<0>(b);
   }
 };
 
 
-bool all_set(const std::vector<std::shared_ptr<std::atomic_flag>> &conditions) {
+bool all_set(const std::vector<std::shared_ptr<std::atomic<bool>>> &conditions) {
   // test whether all conditions are true
   // note, const ref to shared ptr is fine, since we know it is kept alive by the vector
-  return std::all_of(conditions.begin(), conditions.end(), [](const std::shared_ptr<std::atomic_flag> &x) {
-    return x->test();
+  return std::all_of(conditions.begin(), conditions.end(), [](const std::shared_ptr<std::atomic<bool>> &x) {
+    return x->load();
   });
 }
 
@@ -76,16 +76,16 @@ public:
 
 
   template <typename F>
-  std::shared_ptr<std::atomic_flag> push_task(const F &task)
+  std::shared_ptr<std::atomic<bool>> push_task(const F &task)
   {
     return push_task(0, task);
   }
 
 
   template <typename F>
-  std::shared_ptr<std::atomic_flag> push_task(int priority, const F &task)
+  std::shared_ptr<std::atomic<bool>> push_task(int priority, const F &task)
   {
-    auto flag = std::make_shared<std::atomic_flag>();
+    auto flag = std::make_shared<std::atomic<bool>>();
     {
       const std::scoped_lock lock(tasks_mutex);
       tasks.push(std::make_tuple(priority, flag, std::function<void()>(task)));
@@ -96,24 +96,24 @@ public:
   }
 
   template <typename F, typename... C>
-  std::shared_ptr<std::atomic_flag>
+  std::shared_ptr<std::atomic<bool>>
   push_task(const F &task,
-            const std::vector<std::shared_ptr<std::atomic_flag>> &conditions) {
+            const std::vector<std::shared_ptr<std::atomic<bool>>> &conditions) {
     return push_task(0, task, conditions);
   }
 
   template <typename F>
-  std::shared_ptr<std::atomic_flag>
+  std::shared_ptr<std::atomic<bool>>
   push_task(int priority, const F &task,
-            const std::vector<std::shared_ptr<std::atomic_flag>> &conditions) {
-    auto flag = std::make_shared<std::atomic_flag>();
+            const std::vector<std::shared_ptr<std::atomic<bool>>> &conditions) {
+    auto flag = std::make_shared<std::atomic<bool>>();
 
     for (auto &w : conditions) {
-      std::cout << w << "->" << w->test() << ' ';
+      std::cout << w << "->" << w->load() << ' ';
     }
     std::cout << "tested for task yielding " << all_set(conditions) << std::endl;
 
-    // std::vector<std::shared_ptr<std::atomic_flag>> conditions{conds...};
+    // std::vector<std::shared_ptr<std::atomic<bool>>> conditions{conds...};
     if (all_set(conditions)) {
       // all conditions are already finished
       // so just ignore them and start a task as normal
@@ -142,16 +142,16 @@ public:
 
 
   template <typename F, typename... C>
-  std::shared_ptr<std::atomic_flag> push_task(const F &task, C... conds)
+  std::shared_ptr<std::atomic<bool>> push_task(const F &task, C... conds)
   {
     return push_task(0, task, conds...);
   }
 
 
   template <typename F, typename... C>
-  std::shared_ptr<std::atomic_flag> push_task(int priority, const F &task, C... conds)
+  std::shared_ptr<std::atomic<bool>> push_task(int priority, const F &task, C... conds)
   {
-    std::vector<std::shared_ptr<std::atomic_flag>> conditions {conds...};
+    std::vector<std::shared_ptr<std::atomic<bool>>> conditions {conds...};
     return push_task(priority, task, conditions);
   }
 
@@ -192,7 +192,7 @@ private:
           lock.unlock();
 
           task();
-          flag->test_and_set();
+          flag->store(true);
 
           lock.lock();
           --n_tasks;
@@ -203,7 +203,7 @@ private:
         for (size_t i = 0; i < waiting_tasks.size(); ++i) {
 
           for (auto &w : std::get<3>(waiting_tasks[i])) {
-            std::cout << w << "->" << w->test() << ' ';
+            std::cout << w << "->" << w->load() << ' ';
           }
           std::cout << "tested for activation yielding "
                     << all_set(std::get<3>(waiting_tasks[i]))
@@ -241,13 +241,13 @@ private:
   std::atomic<bool> running {true};
   int n_tasks {0}; // total number of waiting, queued, and running tasks
 
-  std::priority_queue<std::tuple<int, std::shared_ptr<std::atomic_flag>, std::function<void()>>,
-                      std::vector<std::tuple<int, std::shared_ptr<std::atomic_flag>, std::function<void()>>>,
+  std::priority_queue<std::tuple<int, std::shared_ptr<std::atomic<bool>>, std::function<void()>>,
+                      std::vector<std::tuple<int, std::shared_ptr<std::atomic<bool>>, std::function<void()>>>,
                       compare_task_priority> tasks;
 
   std::vector<std::tuple<int,
-                         std::shared_ptr<std::atomic_flag>,
+                         std::shared_ptr<std::atomic<bool>>,
                          std::function<void()>,
-                         std::vector<std::shared_ptr<std::atomic_flag>>>> waiting_tasks;
+                         std::vector<std::shared_ptr<std::atomic<bool>>>>> waiting_tasks;
 };
 

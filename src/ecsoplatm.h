@@ -13,7 +13,7 @@ namespace ecs {
     void destroy(uint32_t);
 
     std::vector<uint32_t> destroy_queue;
-    IntervalMap<std::shared_ptr<std::atomic_flag>> waiting_flags;
+    IntervalMap<std::shared_ptr<std::atomic<bool>>> waiting_flags;
   };
 
 
@@ -150,7 +150,7 @@ namespace ecs {
         wait_a.insert(wait_a.end(), wait_b.begin(), wait_b.end());
 
         for (auto &w : wait_a) {
-          std::cout << w << "->" << w->test() << ' ';
+          std::cout << w << "->" << w->load() << ' ';
         }
         std::cout << std::endl;
 
@@ -191,7 +191,7 @@ namespace ecs {
       wait_a.insert(wait_a.end(), wait_b.begin(), wait_b.end());
 
       for (auto &w: wait_a) {
-        std::cout << w << "->" << w->test() << ' ';
+        std::cout << w << "->" << w->load() << ' ';
       }
       std::cout << std::endl;
 

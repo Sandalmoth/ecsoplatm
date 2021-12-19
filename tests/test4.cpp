@@ -14,7 +14,7 @@ int main() {
   }
   std::cout << std::endl;
 
-  std::shared_ptr<std::atomic_flag> flag;
+  std::shared_ptr<std::atomic<bool>> flag;
 
   for (int i = 0; i < v.size(); ++i) {
     flag = pool.push_task([&v, i]() {
@@ -26,7 +26,7 @@ int main() {
     v[v.size() - 1] *= 3;
   }, flag);
 
-  while (!flag->test()) {
+  while (!flag->load()) {
     std::cout << "yo" << std::endl;
   }
   std::cout << "dawg" << std::endl;

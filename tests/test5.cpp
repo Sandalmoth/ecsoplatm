@@ -15,7 +15,7 @@ void bar(float &a) {
 
 
 int main() {
-  ecs::Manager ecs;
+  ecs::Manager ecs(1);
 
   ecs::Component<float> a;
   ecs::Component<float> b;
