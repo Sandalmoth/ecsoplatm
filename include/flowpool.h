@@ -105,7 +105,7 @@ public:
   template <typename F>
   std::shared_ptr<std::atomic<bool>>
   push_task(int priority, const F &task,
-            const std::vector<std::shared_ptr<std::atomic<bool>>> &conditions) {
+            std::vector<std::shared_ptr<std::atomic<bool>>> conditions) {
     auto flag = std::make_shared<std::atomic<bool>>();
 
     for (auto &w : conditions) {
