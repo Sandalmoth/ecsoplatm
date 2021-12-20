@@ -1,6 +1,18 @@
 #include <iostream>
 
 
+#include "flowpool.h"
+
+
 int main() {
-  std::cout << "hello world!" << std::endl;
+  Flowpool pool;
+
+  int a = 0;
+
+  pool.push_task([&]() {
+    ++a;
+  });
+  pool.wait_for_tasks();
+
+  std::cout << a << std::endl;
 }
