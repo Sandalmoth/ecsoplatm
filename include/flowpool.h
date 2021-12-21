@@ -27,6 +27,14 @@
 
 class Flowpool {
 public:
+
+  enum TaskStatus {
+    WAITING,
+    IN_PROGRESS,
+    DONE,
+    NUM_TASK_STATUS
+  };
+
   Flowpool() {
     n_threads = std::thread::hardware_concurrency();
     create_threads();
@@ -58,7 +66,7 @@ public:
     std::scoped_lock lock(tasks_mutex);
     tasks.push_back(task);
     conditions.push_back(conds);
-    flags.emplace_back(false);
+    flags.emplace_back(WAITING);
     ++n_tasks;
     return total_tasks++;
   }
@@ -101,6 +109,31 @@ private:
         // grab the first task from tasks that is doable
         // a task is doable if conds[task].size == 0
         // or if all flags[conds[task]] == true
+        // possible speedup: don't start from 0
+        int task_id = 0;
+        while (task_id < total_tasks) {
+          if (flags[task_id] == WAITING) {
+            // it's a waiting task, see if it can run
+            bool doable = true;
+            for (auto cond: conditions[task_id]) {
+              // possible speedup: short circuit loop
+              doable = doable && (flags[cond] == DONE);
+            }
+            if (doable) {
+              auto task = std::move(tasks[task_id]);
+              flags[task_id] = IN_PROGRESS;
+
+              lock.unlock();
+              task();
+              lock.lock();
+
+              flags[task_id] = DONE;
+              --n_tasks;
+              break;
+            }
+          }
+          ++task_id;
+        }
 
         lock.unlock();
         tasks_done_condition.notify_one();
