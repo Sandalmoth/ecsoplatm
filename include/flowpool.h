@@ -71,9 +71,10 @@ public:
     return total_tasks++;
   }
 
-  template <typename F, typename... C>
+  template <typename F,
+            std::convertible_to<int>... C>
   int push_task(const F &task, C... conds) {
-    std::vector<int> vconds = {conds...};
+    std::vector<int> vconds {conds...};
     return push_task(task, vconds);
   }
 

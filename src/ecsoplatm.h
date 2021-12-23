@@ -13,7 +13,7 @@ namespace ecs {
     void destroy(uint32_t);
 
     std::vector<uint32_t> destroy_queue;
-    IntervalMap<std::shared_ptr<std::atomic<bool>>> waiting_flags;
+    IntervalMap<int> waiting_flags;
   };
 
 
@@ -84,7 +84,7 @@ namespace ecs {
       while (static_cast<size_t>(i) < a.data.size()) {
         int j = std::min(a.data.size(), static_cast<size_t>(i + BLOCK_SIZE));
         auto wait = a.waiting_flags.get(i, j);
-        auto flag = pool.push_task(priority, [f,
+        auto flag = pool.push_task([f,
                                   first = a.data.begin() + i,
                                   last = a.data.begin() + j]() {
           auto it = first;
@@ -149,15 +149,10 @@ namespace ecs {
                                           it_b_break - b.data.begin());
         wait_a.insert(wait_a.end(), wait_b.begin(), wait_b.end());
 
-        for (auto &w : wait_a) {
-          std::cout << w << "->" << w->load() << ' ';
-        }
-        std::cout << std::endl;
-
         auto flag = pool.push_task(
-            priority, [f,
-                       afirst = it_a, alast = it_a_break,
-                       bfirst = it_b, blast = it_b_break]() {
+            [f,
+             afirst = it_a, alast = it_a_break,
+             bfirst = it_b, blast = it_b_break]() {
               auto it_a = afirst;
               auto it_b = bfirst;
               while ((it_a != alast) && (it_b != blast)) {
@@ -190,12 +185,7 @@ namespace ecs {
                                         b.data.size());
       wait_a.insert(wait_a.end(), wait_b.begin(), wait_b.end());
 
-      for (auto &w: wait_a) {
-        std::cout << w << "->" << w->load() << ' ';
-      }
-      std::cout << std::endl;
-
-      auto flag = pool.push_task(priority, [f, afirst = it_a, alast = a.data.end(),
+      auto flag = pool.push_task([f, afirst = it_a, alast = a.data.end(),
                                 bfirst = it_b, blast = b.data.end()]() {
         auto it_a = afirst;
         auto it_b = bfirst;
