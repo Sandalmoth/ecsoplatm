@@ -58,8 +58,7 @@ namespace ecs {
 
 
   struct Manager {
-    uint32_t max_unused_id;
-    int priority;
+    uint32_t max_unused_id {0};
     Flowpool pool;
     std::vector<ComponentInterface *> components;
     std::vector<uint32_t> unused_ids;
@@ -92,12 +91,12 @@ namespace ecs {
             f(it->second);
             ++it;
           }
-        });
+        }, wait);
         a.waiting_flags.set(i, j, flag);
         i += BLOCK_SIZE;
       }
 
-      ++priority;
+      std::cout << a.waiting_flags << std::endl;
     }
 
     template <typename A, typename B>
@@ -212,7 +211,6 @@ namespace ecs {
       std::cout << a.waiting_flags << std::endl;
       std::cout << b.waiting_flags << std::endl;
 
-      ++priority;
     }
 
   };
@@ -227,13 +225,9 @@ void ecs::ComponentInterface::destroy(uint32_t id) {
   destroy_queue.push_back(id);
 }
 
-ecs::Manager::Manager()
-  : max_unused_id(0)
-  , priority(0) {}
+ecs::Manager::Manager() {}
 ecs::Manager::Manager(int n_threads)
-  : max_unused_id(0)
-  , priority(0)
-  , pool(n_threads) {}
+  : pool(n_threads) {}
 
 uint32_t ecs::Manager::get_id() {
   uint32_t id = max_unused_id;

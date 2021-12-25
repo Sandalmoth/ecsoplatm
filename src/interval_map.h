@@ -68,7 +68,7 @@ template <typename T>
 std::ostream &operator<<(std::ostream &out, IntervalMap<T> &im) {
   out << '[';
   for (auto &[first, last, value]: im.data) {
-    out << '(' << first << ' ' << last << ')';
+    out << '(' << first << ' ' << value << ' ' << last << ')';
   }
   out << ']';
   return out;

@@ -65,8 +65,9 @@ public:
                 std::vector<int> conds) {
     std::scoped_lock lock(tasks_mutex);
     tasks.push_back(task);
-    conditions.push_back(conds);
-    flags.emplace_back(WAITING);
+    conditions.push_back(std::move(conds));
+    flags.push_back(WAITING);
+    task_available_condition.notify_one(); // possilbe speedup, unlock before notifying
     ++n_tasks;
     return total_tasks++;
   }
@@ -100,6 +101,7 @@ private:
 
   void worker() {
     while (running) {
+
       std::unique_lock<std::mutex> lock(tasks_mutex);
 
       task_available_condition.wait(lock, [&]{
@@ -128,6 +130,10 @@ private:
               task();
               lock.lock();
 
+              for (auto &f: flags)
+                std::cout << f << ' ';
+              std::cout << std::endl;
+
               flags[task_id] = DONE;
               --n_tasks;
               break;
@@ -141,6 +147,8 @@ private:
       }
     }
   }
+
+  friend std::ostream &operator<<(std::ostream &, Flowpool &);
 
   int n_threads;
   std::unique_ptr<std::thread[]> threads;
@@ -158,4 +166,30 @@ private:
   std::vector<std::function<void()>> tasks;
   std::vector<std::vector<int>> conditions; // indices into flags
 };
+
+
+inline std::ostream &operator<<(std::ostream &out, Flowpool &pool) {
+  std::scoped_lock lock(pool.tasks_mutex);
+  std::cout << pool.n_tasks << " unfinished out of " << pool.total_tasks << " total" << std::endl;
+  for (int i = 0; i < pool.total_tasks; ++i) {
+    std::string flag;
+    switch (pool.flags[i]) {
+    case Flowpool::WAITING:
+      flag = "waiting";
+      break;
+    case Flowpool::IN_PROGRESS:
+      flag = "in_progress";
+      break;
+    case Flowpool::DONE:
+      flag = "done";
+      break;
+    }
+    std::cout << '(' << i << ' ' << flag;
+    for (auto &w: pool.conditions[i]) {
+      std::cout << ' ' << w;
+    }
+    std::cout << ')' << std::endl;
+  }
+  return out;
+}
 
