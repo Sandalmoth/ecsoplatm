@@ -1,5 +1,9 @@
 #pragma once
 
+
+#include <string>
+#include <vector>
+
 #include "flowpool.h"
 #include "interval_map.h"
 
@@ -10,6 +14,7 @@ namespace ecs {
 
   struct ComponentInterface {
     virtual void update() = 0;
+    virtual bool exists(uint32_t) = 0;
     void destroy(uint32_t id) { destroy_queue.push_back(id); }
 
     std::vector<uint32_t> destroy_queue;
@@ -37,6 +42,10 @@ namespace ecs {
 
     void create(uint32_t entity, T value) {
       create_queue.push_back(std::make_pair(entity, value));
+    }
+
+    bool exists(uint32_t id) {
+      return nullptr != this->operator[](id);
     }
 
     void update() {
@@ -79,6 +88,7 @@ namespace ecs {
     uint32_t max_unused_id {0};
     Flowpool pool;
     std::vector<ComponentInterface *> components;
+    std::vector<std::string> component_names; // used for debug features
     std::vector<uint32_t> unused_ids;
 
     Manager() {}
@@ -100,6 +110,23 @@ namespace ecs {
 
     template <typename T> void enlist(Component<T> *component) {
       components.push_back(component);
+      component_names.push_back("UNKNOWN");
+    }
+
+    template <typename T> void enlist(Component<T> *component, std::string name) {
+      components.push_back(component);
+      component_names.push_back(name);
+    }
+
+    void debug_print_entity_components(uint32_t id) {
+      std::cout << id << " : ";
+      // print what components an entity has
+      for (size_t i = 0; i < components.size(); ++i) {
+        if (components[i]->exists(id)) {
+          std::cout << component_names[i] << ' ';
+        }
+      }
+      std::cout << std::endl;
     }
 
     void update() {
