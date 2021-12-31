@@ -6,11 +6,11 @@
 
 namespace ecs {
 
-  const uint32_t BLOCK_SIZE = 128;
+  const uint32_t BLOCK_SIZE = 256;
 
   struct ComponentInterface {
     virtual void update() = 0;
-    void destroy(uint32_t);
+    void destroy(uint32_t id) { destroy_queue.push_back(id); }
 
     std::vector<uint32_t> destroy_queue;
     IntervalMap<int> waiting_flags;
@@ -42,7 +42,10 @@ namespace ecs {
     void update() {
       // execute deferred destruction
       // first, the destroy queue needs to be sorted
-      std::sort(destroy_queue.begin(), destroy_queue.end());
+      std::sort(destroy_queue.begin(), destroy_queue.end(), std::greater<>());
+      // also, remove duplicate erases
+      destroy_queue.erase(std::unique(destroy_queue.begin(), destroy_queue.end()),
+                          destroy_queue.end());
       // then they can be destroyed in reverse order
       auto last = --data.end();
       for (auto i: destroy_queue) {
@@ -78,16 +81,45 @@ namespace ecs {
     std::vector<ComponentInterface *> components;
     std::vector<uint32_t> unused_ids;
 
-    Manager();
-    Manager(int n_threads);
+    Manager() {}
+    Manager(int n_threads)
+      : pool(n_threads) {}
 
-    uint32_t get_id();
-    void return_id(uint32_t);
+    uint32_t get_id() {
+      uint32_t id = max_unused_id;
+      if (!unused_ids.empty()) {
+        id = unused_ids.back();
+        unused_ids.pop_back();
+      } else {
+        ++max_unused_id;
+      }
+      return id;
+    }
 
-    template <typename T> void enlist(Component<T> *);
-    void update();
-    void destroy(uint32_t);
-    void wait();
+    void return_id(uint32_t id) { unused_ids.push_back(id); }
+
+    template <typename T> void enlist(Component<T> *component) {
+      components.push_back(component);
+    }
+
+    void update() {
+      for (auto c : components) {
+        c->update();
+      }
+    }
+
+    void destroy(uint32_t id) {
+      for (auto c : components) {
+        c->destroy(id);
+      }
+    }
+
+    void wait() {
+      pool.wait_for_tasks();
+      for (auto c : components) {
+        c->waiting_flags.data.clear();
+      }
+    }
 
     template <typename A>
     void apply(void (*f)(A &), Component<A> &a) {
@@ -345,57 +377,8 @@ namespace ecs {
 } // end namespace ecs
 
 
-#ifdef ECSOPLATM_IMPLEMENTATION
-
-void ecs::ComponentInterface::destroy(uint32_t id) {
-  destroy_queue.push_back(id);
-}
-
-ecs::Manager::Manager() {}
-ecs::Manager::Manager(int n_threads)
-  : pool(n_threads) {}
-
-uint32_t ecs::Manager::get_id() {
-  uint32_t id = max_unused_id;
-  if (!unused_ids.empty()) {
-    id = unused_ids.back();
-    unused_ids.pop_back();
-  } else {
-    ++max_unused_id;
-  }
-  return id;
-}
-
-void ecs::Manager::return_id(uint32_t id) {
-  unused_ids.push_back(id);
-}
-
 template <typename T>
-void ecs::Manager::enlist(Component<T> *component) {
-  components.push_back(component);
-}
-
-void ecs::Manager::update() {
-  for (auto c: components) {
-    c->update();
-  }
-}
-
-void ecs::Manager::destroy(uint32_t id) {
-  for (auto c: components) {
-    c->destroy(id);
-  }
-}
-
-void ecs::Manager::wait() {
-  pool.wait_for_tasks();
-  for (auto c : components) {
-    c->waiting_flags.data.clear();
-  }
-}
-
-template <typename T>
-std::ostream &operator<<(std::ostream &out, ecs::Component<T> &c) {
+inline std::ostream &operator<<(std::ostream &out, ecs::Component<T> &c) {
   out << '[';
   for (auto &[id, value]: c.data) {
     out << '(' << id << ' ' << value << ')';
@@ -403,6 +386,4 @@ std::ostream &operator<<(std::ostream &out, ecs::Component<T> &c) {
   out << ']';
   return out;
 }
-
-#endif // ECSOPLATM_IMPLEMENTATION
 
