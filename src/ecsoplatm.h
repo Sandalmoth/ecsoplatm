@@ -1,7 +1,9 @@
 #pragma once
 
 
+#include <array>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "flowpool.h"
@@ -10,7 +12,9 @@
 
 namespace ecs {
 
-  const uint32_t BLOCK_SIZE = 256;
+  const int BLOCK_SIZE = 256;
+  const int CACHE_BITS = 4;
+  const int CACHE_SIZE = 0x1 << CACHE_BITS;
 
   struct ComponentInterface {
     virtual void update() = 0;
@@ -26,14 +30,26 @@ namespace ecs {
   struct Component : ComponentInterface {
 
     T *operator[](uint32_t key) {
+
+      int hashed = std::hash<uint32_t>{}(key);
+      hashed = hashed & (CACHE_SIZE - 1);
+
+      if (key == cache[hashed].first) {
+        return cache[hashed].second;
+      }
+
       auto it = std::lower_bound(data.begin(), data.end(), key,
                                  [](const std::pair<uint32_t, T> &a,
                                     uint32_t b) { return a.first < b; });
+
+      cache[hashed].first = key;
+      cache[hashed].second = nullptr;
 
       if (it == data.end()) {
         return nullptr;
       }
       if (key == it->first) {
+        cache[hashed].second = &(it->second);
         return &(it->second);
       } else {
         return nullptr;
@@ -49,6 +65,8 @@ namespace ecs {
     }
 
     void update() {
+      // update may invalidate the cache, so erase it
+      cache.fill(std::make_pair(0, nullptr));
       // execute deferred destruction
       // first, the destroy queue needs to be sorted
       std::sort(destroy_queue.begin(), destroy_queue.end(), std::greater<>());
@@ -80,12 +98,13 @@ namespace ecs {
 
     std::vector<std::pair<uint32_t, T>> data;
     std::vector<std::pair<uint32_t, T>> create_queue;
+    std::array<std::pair<uint32_t, T *>, CACHE_SIZE> cache;
 
   };
 
 
   struct Manager {
-    uint32_t max_unused_id {0};
+    uint32_t max_unused_id {1}; // 0 is no entity by definition
     Flowpool pool;
     std::vector<ComponentInterface *> components;
     std::vector<std::string> component_names; // used for debug features
