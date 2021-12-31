@@ -68,13 +68,17 @@ public:
   template <typename F>
   int push_task(const F &task,
                 std::vector<int> conds) {
-    std::scoped_lock lock(tasks_mutex);
-    tasks.push_back(task);
-    conditions.push_back(std::move(conds));
-    flags.push_back(WAITING);
-    task_available_condition.notify_one(); // possilbe speedup, unlock before notifying
-    ++n_tasks;
-    return total_tasks++;
+    int id;
+    {
+      std::scoped_lock lock(tasks_mutex);
+      tasks.push_back(task);
+      conditions.push_back(std::move(conds));
+      flags.push_back(WAITING);
+      ++n_tasks;
+      id = total_tasks++;
+    }
+    task_available_condition.notify_one();
+    return id;
   }
 
   template <typename F,
