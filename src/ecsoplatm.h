@@ -3,7 +3,6 @@
 
 #include <array>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "flowpool.h"
@@ -31,7 +30,7 @@ namespace ecs {
 
     T *operator[](uint32_t key) {
 
-      int hashed = std::hash<uint32_t>{}(key);
+      int64_t hashed = key * 0xf9b25d65 >> 8; // see arXiv:2001.05304
       hashed = hashed & (CACHE_SIZE - 1);
 
       if (key == cache[hashed].first) {
