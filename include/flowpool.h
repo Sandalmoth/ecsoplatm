@@ -1,18 +1,13 @@
 #pragma once
 
-#include <algorithm>
 #include <atomic>
 #include <cstdint>
 #include <functional>
 #include <future>
 #include <iostream>
-#include <memory>
 #include <mutex>
-#include <queue>
 #include <thread>
-#include <tuple>
 #include <type_traits>
-#include <utility>
 
 /*
  * This thread pool is essentially a rewrite and modified version of
