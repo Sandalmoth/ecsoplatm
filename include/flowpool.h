@@ -58,6 +58,11 @@ public:
     tasks_done_condition.wait(lock, [&] {
       return (n_tasks == 0);
     });
+
+    total_tasks = 0;
+    tasks.clear();
+    flags.clear();
+    conditions.clear();
   }
 
   template <typename F>
@@ -129,10 +134,6 @@ private:
               lock.unlock();
               task();
               lock.lock();
-
-              for (auto &f: flags)
-                std::cout << f << ' ';
-              std::cout << std::endl;
 
               flags[task_id] = DONE;
               --n_tasks;
