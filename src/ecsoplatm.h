@@ -15,11 +15,40 @@
 #include <vector>
 
 
+/*
+ * Copyright(c) 2021 Jonathan Lindström
+ *
+ * This software is provided 'as-is', without any express or implied
+ * warranty.In no event will the authors be held liable for any damages
+ * arising from the use of this software.
+ *
+ * Permission is granted to anyone to use this software for any purpose,
+ * including commercial applications, and to alter it and redistribute it
+ * freely, subject to the following restrictions:
+ *
+ *  1. The origin of this software must not be misrepresented; you must not
+ * claim that you wrote the original software.If you use this software
+ * in a product, an acknowledgment in the product documentation would be
+ * appreciated but is not required.
+ *  2. Altered source versions must be plainly marked as such, and must not be
+ * misrepresented as being the original software.
+ *  3. This notice may not be removed or altered from any source distribution.
+ */
+
+
 namespace ecs { class Flowpool; }
 inline std::ostream &operator<<(std::ostream &, ecs::Flowpool &);
 
 
 namespace ecs {
+
+  // NOTE these block size and cache bits can be tuned for performance
+  // BLOCK_SIZE is approximately number of things done in a single job
+  // it shouldn't be too small, or threadpool overhead will start to matter
+  // but if it's too big, there won't be much parallelization
+  // 2 ^ CACHE_BITS is the size of the caches in each component
+  // since the cache is invalidated when calling update
+  // it doesn't make sense to have a huge cache
 
   const int BLOCK_SIZE = 256;
   const int CACHE_BITS = 4;
@@ -97,12 +126,13 @@ namespace ecs {
   class Flowpool {
 
     /*
-    * This thread pool is essentially a rewrite and modified version of
+    * This thread pool is sort of a rewrite and modified version of
     * SandSnip3r's fork ( https://github.com/SandSnip3r/thread-pool ) of
     * Barak Shashany's thread_pool.hpp library (
     * https://github.com/bshoshany/thread-pool ).
-    *
-    * It also implements a waiting system where a pushed task can be required
+    * However, there are several changes to how it works
+    * and most of the features are not present, because they weren't needed.
+    * It implements a waiting system where a pushed task can be required
     * to wait for some prior task to finish before entering the work queue.
     * This enables us to queue tasks that will sequentially modify the same data.
     */
@@ -267,6 +297,11 @@ namespace ecs {
   template <typename T>
   struct Component : ComponentInterface {
 
+    /*
+     * This is the main data structure for the library
+     * it is, in essence, a sorted array of (id, value) pairs
+     */
+
     T *operator[](uint32_t key) {
 
       int64_t hashed = key * 0xf9b25d65 >> 8; // see arXiv:2001.05304
@@ -347,6 +382,15 @@ namespace ecs {
 
 
   struct Manager {
+
+    /*
+     * This class is how to interact with the entity components
+     * and how to build systems that work with them in parallel.
+     * The main functionality are the apply functions
+     * which take a function and applies it to all entities that
+     * have the required components.
+     */
+
     uint32_t max_unused_id {1}; // 0 is no entity by definition
     Flowpool pool;
     std::vector<ComponentInterface *> components;
@@ -358,6 +402,11 @@ namespace ecs {
       : pool(n_threads) {}
 
     uint32_t get_id() {
+
+      /*
+       * Get a new entity id
+       */
+
       uint32_t id = max_unused_id;
       if (!unused_ids.empty()) {
         id = unused_ids.back();
@@ -398,9 +447,13 @@ namespace ecs {
     }
 
     void destroy(uint32_t id) {
+      /*
+       * Note that this also marks the entity id as unused
+       */
       for (auto c : components) {
         c->destroy(id);
       }
+      return_id(id);
     }
 
     void wait() {
@@ -409,6 +462,25 @@ namespace ecs {
         c->waiting_flags.data.clear();
       }
     }
+
+    /*
+     * All the apply functions work the same way
+     * they take a function like
+     * void foo(A &a)
+     * and a component structure
+     * Component<A> &as
+     * and runs the function on all items in the container
+     * The main feature is that the 2+ component versions
+     * will run the function only
+     * for the entity id's present in all containes
+     * (with the corresponding component from each container for that entity)
+     *
+     * There are also versions that accept a void pointer
+     * and forward it to the function to be applied.
+     * Just note that, since it's al parallelized
+     * there can be race conditions if we modify that data or whatever
+     * so it's best to only use data that is constant during the apply step
+     */
 
     template <typename A>
     void apply(void (*f)(A &), Component<A> &a) {

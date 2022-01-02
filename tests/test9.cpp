@@ -59,7 +59,6 @@ int main() {
   b.destroy(3);
   c.destroy(4);
   ecs.destroy(5);
-  ecs.return_id(5);
   a.create(12, 144);
   b.create(13, 169);
   c.create(14, 196);
