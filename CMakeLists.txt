@@ -1,8 +1,10 @@
 cmake_minimum_required(VERSION 3.0.0)
 
+add_executable(example tests/example.cpp)
 add_executable(test8 tests/test8.cpp)
 add_executable(test9 tests/test9.cpp)
 
+include_directories(example "src")
 include_directories(test8 "src")
 include_directories(test9 "src")
 
