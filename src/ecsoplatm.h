@@ -655,6 +655,297 @@ namespace ecs {
 
     }
 
+    template <typename A, typename B, typename C>
+    void apply(void (*f)(A &, B &, C &), Component<A> &a, Component<B> &b, Component<C> &c) {
+      if ((a.data.size() == 0) || (b.data.size() == 0) || (c.data.size() == 0))
+        return;
+
+      int n = (a.data.size() + b.data.size() + c.data.size())/BLOCK_SIZE/3;
+      n = std::max(n, 1);
+      int a_step = a.data.size()/n;
+      int b_step = b.data.size()/n;
+      int c_step = c.data.size()/n;
+
+      std::vector<int> breaks;
+      breaks.reserve(n);
+      for (int i = 1; i < n; ++i) {
+        breaks.push_back((a.data[i*a_step].first +
+                          b.data[i*b_step].first +
+                          c.data[i*c_step].first) / 3);
+      }
+
+      auto it_a = a.data.begin();
+      auto it_b = b.data.begin();
+      auto it_c = c.data.begin();
+
+      for (auto breakpoint: breaks) {
+        // find an iterator to the entity with id = breakpoint in each list
+        auto it_a_break =
+            std::lower_bound(a.data.begin(), a.data.end(), breakpoint,
+                             [](const std::pair<uint32_t, A> &a, uint32_t b) {
+                               return a.first < b;
+                             });
+        auto it_b_break =
+            std::lower_bound(b.data.begin(), b.data.end(), breakpoint,
+                             [](const std::pair<uint32_t, B> &a, uint32_t b) {
+                               return a.first < b;
+                             });
+        auto it_c_break =
+            std::lower_bound(c.data.begin(), c.data.end(), breakpoint,
+                             [](const std::pair<uint32_t, C> &a, uint32_t b) {
+                               return a.first < b;
+                             });
+
+        auto wait_a = a.waiting_flags.get(it_a - a.data.begin(),
+                                          it_a_break - a.data.begin());
+        auto wait_b = b.waiting_flags.get(it_b - b.data.begin(),
+                                          it_b_break - b.data.begin());
+        auto wait_c = c.waiting_flags.get(it_c - c.data.begin(),
+                                          it_c_break - c.data.begin());
+        wait_a.insert(wait_a.end(), wait_b.begin(), wait_b.end());
+        wait_a.insert(wait_a.end(), wait_c.begin(), wait_c.end());
+
+        // the idea here is to increment whichever iterator points to the lowest id
+        // and if they're all equal, then we apply the function, and increase all
+        auto flag = pool.push_task(
+            [f,
+             afirst = it_a, alast = it_a_break,
+             bfirst = it_b, blast = it_b_break,
+             cfirst = it_c, clast = it_c_break]() {
+              auto it_a = afirst;
+              auto it_b = bfirst;
+              auto it_c = cfirst;
+              while ((it_a != alast) && (it_b != blast) && (it_c != clast)) {
+                if ((it_a->first == it_b->first) && (it_a->first == it_c->first)) {
+                  f(it_a->second, it_b->second, it_c->second);
+                  ++it_a;
+                  ++it_b;
+                  ++it_c;
+                } else if ((it_a->first < it_b->first) ||
+                           (it_a->first < it_c->first)) {
+                  ++it_a;
+                } else if ((it_b->first < it_a->first) ||
+                           (it_b->first < it_c->first)) {
+                  ++it_b;
+                } else if ((it_c->first < it_a->first) ||
+                           (it_c->first < it_b->first)) {
+                  ++it_c;
+                }
+              }
+            }, wait_a);
+
+        a.waiting_flags.set(it_a - a.data.begin(),
+                            it_a_break - a.data.begin(),
+                            flag);
+        b.waiting_flags.set(it_b - b.data.begin(),
+                            it_b_break - b.data.begin(),
+                            flag);
+        c.waiting_flags.set(it_c - c.data.begin(),
+                            it_c_break - c.data.begin(),
+                            flag);
+
+        it_a = it_a_break;
+        it_b = it_b_break;
+        it_c = it_c_break;
+      }
+
+      auto wait_a = a.waiting_flags.get(it_a - a.data.begin(),
+                                        a.data.size());
+      auto wait_b = b.waiting_flags.get(it_b - b.data.begin(),
+                                        b.data.size());
+      auto wait_c = c.waiting_flags.get(it_c - c.data.begin(),
+                                        c.data.size());
+
+      wait_a.insert(wait_a.end(), wait_b.begin(), wait_b.end());
+      wait_a.insert(wait_a.end(), wait_c.begin(), wait_c.end());
+
+      // FIXME
+
+      auto flag = pool.push_task(
+          [f,
+           afirst = it_a, alast = a.data.end(),
+           bfirst = it_b, blast = b.data.end(),
+           cfirst = it_c, clast = c.data.end()]() {
+            auto it_a = afirst;
+            auto it_b = bfirst;
+            auto it_c = cfirst;
+            while ((it_a != alast) && (it_b != blast) && (it_c != clast)) {
+              if ((it_a->first == it_b->first) && (it_a->first == it_c->first)) {
+                f(it_a->second, it_b->second, it_c->second);
+                ++it_a;
+                ++it_b;
+                ++it_c;
+              } else if ((it_a->first < it_b->first) ||
+                          (it_a->first < it_c->first)) {
+                ++it_a;
+              } else if ((it_b->first < it_a->first) ||
+                          (it_b->first < it_c->first)) {
+                ++it_b;
+              } else if ((it_c->first < it_a->first) ||
+                          (it_c->first < it_b->first)) {
+                ++it_c;
+              }
+            }
+          }, wait_a);
+
+      a.waiting_flags.set(it_a - a.data.begin(),
+                          a.data.size(),
+                          flag);
+      b.waiting_flags.set(it_b - b.data.begin(),
+                          b.data.size(),
+                          flag);
+      c.waiting_flags.set(it_c - c.data.begin(),
+                          c.data.size(),
+                          flag);
+    }
+
+    template <typename A, typename B, typename C>
+    void apply(void (*f)(A &, B &, C &, void *),
+               Component<A> &a, Component<B> &b, Component<C> &c,
+               void *payload) {
+      if ((a.data.size() == 0) || (b.data.size() == 0) || (c.data.size() == 0))
+        return;
+
+      int n = (a.data.size() + b.data.size() + c.data.size())/BLOCK_SIZE/3;
+      n = std::max(n, 1);
+      int a_step = a.data.size()/n;
+      int b_step = b.data.size()/n;
+      int c_step = c.data.size()/n;
+
+      std::vector<int> breaks;
+      breaks.reserve(n);
+      for (int i = 1; i < n; ++i) {
+        breaks.push_back((a.data[i*a_step].first +
+                          b.data[i*b_step].first +
+                          c.data[i*c_step].first) / 3);
+      }
+
+      auto it_a = a.data.begin();
+      auto it_b = b.data.begin();
+      auto it_c = c.data.begin();
+
+      for (auto breakpoint: breaks) {
+        // find an iterator to the entity with id = breakpoint in each list
+        auto it_a_break =
+            std::lower_bound(a.data.begin(), a.data.end(), breakpoint,
+                             [](const std::pair<uint32_t, A> &a, uint32_t b) {
+                               return a.first < b;
+                             });
+        auto it_b_break =
+            std::lower_bound(b.data.begin(), b.data.end(), breakpoint,
+                             [](const std::pair<uint32_t, B> &a, uint32_t b) {
+                               return a.first < b;
+                             });
+        auto it_c_break =
+            std::lower_bound(c.data.begin(), c.data.end(), breakpoint,
+                             [](const std::pair<uint32_t, C> &a, uint32_t b) {
+                               return a.first < b;
+                             });
+
+        auto wait_a = a.waiting_flags.get(it_a - a.data.begin(),
+                                          it_a_break - a.data.begin());
+        auto wait_b = b.waiting_flags.get(it_b - b.data.begin(),
+                                          it_b_break - b.data.begin());
+        auto wait_c = c.waiting_flags.get(it_c - c.data.begin(),
+                                          it_c_break - c.data.begin());
+        wait_a.insert(wait_a.end(), wait_b.begin(), wait_b.end());
+        wait_a.insert(wait_a.end(), wait_c.begin(), wait_c.end());
+
+        // the idea here is to increment whichever iterator points to the lowest id
+        // and if they're all equal, then we apply the function, and increase all
+        auto flag = pool.push_task(
+                                   [f, payload,
+             afirst = it_a, alast = it_a_break,
+             bfirst = it_b, blast = it_b_break,
+             cfirst = it_c, clast = it_c_break]() {
+              auto it_a = afirst;
+              auto it_b = bfirst;
+              auto it_c = cfirst;
+              while ((it_a != alast) && (it_b != blast) && (it_c != clast)) {
+                if ((it_a->first == it_b->first) && (it_a->first == it_c->first)) {
+                  f(it_a->second, it_b->second, it_c->second, payload);
+                  ++it_a;
+                  ++it_b;
+                  ++it_c;
+                } else if ((it_a->first < it_b->first) ||
+                           (it_a->first < it_c->first)) {
+                  ++it_a;
+                } else if ((it_b->first < it_a->first) ||
+                           (it_b->first < it_c->first)) {
+                  ++it_b;
+                } else if ((it_c->first < it_a->first) ||
+                           (it_c->first < it_b->first)) {
+                  ++it_c;
+                }
+              }
+            }, wait_a);
+
+        a.waiting_flags.set(it_a - a.data.begin(),
+                            it_a_break - a.data.begin(),
+                            flag);
+        b.waiting_flags.set(it_b - b.data.begin(),
+                            it_b_break - b.data.begin(),
+                            flag);
+        c.waiting_flags.set(it_c - c.data.begin(),
+                            it_c_break - c.data.begin(),
+                            flag);
+
+        it_a = it_a_break;
+        it_b = it_b_break;
+        it_c = it_c_break;
+      }
+
+      auto wait_a = a.waiting_flags.get(it_a - a.data.begin(),
+                                        a.data.size());
+      auto wait_b = b.waiting_flags.get(it_b - b.data.begin(),
+                                        b.data.size());
+      auto wait_c = c.waiting_flags.get(it_c - c.data.begin(),
+                                        c.data.size());
+
+      wait_a.insert(wait_a.end(), wait_b.begin(), wait_b.end());
+      wait_a.insert(wait_a.end(), wait_c.begin(), wait_c.end());
+
+      // FIXME
+
+      auto flag = pool.push_task(
+                                 [f, payload,
+           afirst = it_a, alast = a.data.end(),
+           bfirst = it_b, blast = b.data.end(),
+           cfirst = it_c, clast = c.data.end()]() {
+            auto it_a = afirst;
+            auto it_b = bfirst;
+            auto it_c = cfirst;
+            while ((it_a != alast) && (it_b != blast) && (it_c != clast)) {
+              if ((it_a->first == it_b->first) && (it_a->first == it_c->first)) {
+                f(it_a->second, it_b->second, it_c->second, payload);
+                ++it_a;
+                ++it_b;
+                ++it_c;
+              } else if ((it_a->first < it_b->first) ||
+                          (it_a->first < it_c->first)) {
+                ++it_a;
+              } else if ((it_b->first < it_a->first) ||
+                          (it_b->first < it_c->first)) {
+                ++it_b;
+              } else if ((it_c->first < it_a->first) ||
+                          (it_c->first < it_b->first)) {
+                ++it_c;
+              }
+            }
+          }, wait_a);
+
+      a.waiting_flags.set(it_a - a.data.begin(),
+                          a.data.size(),
+                          flag);
+      b.waiting_flags.set(it_b - b.data.begin(),
+                          b.data.size(),
+                          flag);
+      c.waiting_flags.set(it_c - c.data.begin(),
+                          c.data.size(),
+                          flag);
+    }
+
+
   };
 
 } // end namespace ecs
