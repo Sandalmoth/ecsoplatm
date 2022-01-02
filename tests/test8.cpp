@@ -46,7 +46,7 @@ int main() {
   for (int i = 0; i < 10; ++i) {
     a.create(i, static_cast<float>(i));
     b.create(i, static_cast<float>(i));
-    c.create(i*i, static_cast<float>(i));
+    c.create(i, static_cast<float>(i*i));
   }
   ecs.update();
 

@@ -314,8 +314,13 @@ namespace ecs {
       // then they can be destroyed in reverse order
       auto last = --data.end();
       for (auto i: destroy_queue) {
+        // find the position of the element we're erasing
+        // (still guaranteeed to be in reverse order, since the vector is sorted)
+        auto it = std::lower_bound(data.begin(), data.end(), i,
+                                   [](const std::pair<uint32_t, T> &a,
+                                      uint32_t b) { return a.first < b; });
         // swap to last, then erase (for speed!)
-        std::swap(data[i], (*last));
+        std::swap(data[it - data.begin()], (*last));
         data.erase(last--);
       }
       destroy_queue.clear();
@@ -759,8 +764,6 @@ namespace ecs {
       wait_a.insert(wait_a.end(), wait_b.begin(), wait_b.end());
       wait_a.insert(wait_a.end(), wait_c.begin(), wait_c.end());
 
-      // FIXME
-
       auto flag = pool.push_task(
           [f,
            afirst = it_a, alast = a.data.end(),
@@ -904,8 +907,6 @@ namespace ecs {
 
       wait_a.insert(wait_a.end(), wait_b.begin(), wait_b.end());
       wait_a.insert(wait_a.end(), wait_c.begin(), wait_c.end());
-
-      // FIXME
 
       auto flag = pool.push_task(
                                  [f, payload,
