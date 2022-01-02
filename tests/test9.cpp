@@ -105,4 +105,17 @@ int main() {
   for (int i = 0; i < 16; ++i) {
     ecs.debug_print_entity_components(i);
   }
+  std::cout << std::endl;
+
+  for (int i = 0; i < 3; ++i) {
+    auto id = ecs.get_id();
+    a.create(id, i);
+    b.create(id, i);
+    c.create(id, i);
+  }
+  ecs.update();
+
+  for (int i = 0; i < 16; ++i) {
+    ecs.debug_print_entity_components(i);
+  }
 }
