@@ -15,7 +15,7 @@
 #include <vector>
 
 
-// VERSION 1.0.0
+// VERSION 2.0.0
 
 
 /*
@@ -485,8 +485,7 @@ namespace ecs {
      * so it's best to only use data that is constant during the apply step
      */
 
-    template <typename A>
-    void apply(void (*f)(A &), Component<A> &a) {
+    template <typename A> void apply(Component<A> &a, void (*f)(A &)) {
       if (a.data.size() == 0)
         return; // no work to do
 
@@ -508,7 +507,8 @@ namespace ecs {
       }
     }
 
-    template <typename A> void apply(void (*f)(A &, void *), Component<A> &a, void *payload) {
+    template <typename A>
+    void apply(Component<A> &a, void (*f)(A &, void *), void *payload) {
       // a version that passes along an arbitrary void pointer
       // could be used to access some shared data (in an unprotected manner)
       // since the may be accessed in parallel, it is probably unwise to modify it
@@ -535,7 +535,7 @@ namespace ecs {
     }
 
     template <typename A, typename B>
-    void apply(void (*f)(A &, B &), Component<A> &a, Component<B> &b) {
+    void apply(Component<A> &a, Component<B> &b, void (*f)(A &, B &)) {
       if ((a.data.size() == 0) || (b.data.size() == 0))
         return;
 
@@ -631,11 +631,11 @@ namespace ecs {
       b.waiting_flags.set(it_b - b.data.begin(),
                           b.data.size(),
                           flag);
-
     }
 
     template <typename A, typename B>
-    void apply(void (*f)(A &, B &, void *), Component<A> &a, Component<B> &b, void *payload) {
+    void apply(Component<A> &a, Component<B> &b, void (*f)(A &, B &, void *),
+               void *payload) {
       if ((a.data.size() == 0) || (b.data.size() == 0))
         return;
 
@@ -732,11 +732,11 @@ namespace ecs {
       b.waiting_flags.set(it_b - b.data.begin(),
                           b.data.size(),
                           flag);
-
     }
 
     template <typename A, typename B, typename C>
-    void apply(void (*f)(A &, B &, C &), Component<A> &a, Component<B> &b, Component<C> &c) {
+    void apply(Component<A> &a, Component<B> &b,
+               Component<C> &c, void (*f)(A &, B &, C &)) {
       if ((a.data.size() == 0) || (b.data.size() == 0) || (c.data.size() == 0))
         return;
 
@@ -878,9 +878,8 @@ namespace ecs {
     }
 
     template <typename A, typename B, typename C>
-    void apply(void (*f)(A &, B &, C &, void *),
-               Component<A> &a, Component<B> &b, Component<C> &c,
-               void *payload) {
+    void apply(Component<A> &a, Component<B> &b, Component<C> &c,
+               void (*f)(A &, B &, C &, void *), void *payload) {
       if ((a.data.size() == 0) || (b.data.size() == 0) || (c.data.size() == 0))
         return;
 
@@ -1020,8 +1019,6 @@ namespace ecs {
                           c.data.size(),
                           flag);
     }
-
-
   };
 
 } // end namespace ecs

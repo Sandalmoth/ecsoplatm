@@ -71,30 +71,30 @@ int main() {
 
   int payload = -1;
 
-  ecs.apply(&t1, a);
+  ecs.apply(a, &t1);
   ecs.wait();
   std::cout << a << std::endl;
-  ecs.apply(&t1_p, a, &payload);
+  ecs.apply(a, &t1_p, &payload);
   ecs.wait();
   std::cout << a << std::endl;
   std::cout << std::endl;
 
-  ecs.apply(&t2, a, b);
+  ecs.apply(a, b, &t2);
   ecs.wait();
   std::cout << a << std::endl;
   std::cout << b << std::endl;
-  ecs.apply(&t2_p, a, b, &payload);
+  ecs.apply(a, b, &t2_p, &payload);
   ecs.wait();
   std::cout << a << std::endl;
   std::cout << b << std::endl;
   std::cout << std::endl;
 
-  ecs.apply(&t3, a, b, c);
+  ecs.apply(a, b, c, &t3);
   ecs.wait();
   std::cout << a << std::endl;
   std::cout << b << std::endl;
   std::cout << c << std::endl;
-  ecs.apply(&t3_p, a, b, c, &payload);
+  ecs.apply(a, b, c, &t3_p, &payload);
   ecs.wait();
   std::cout << a << std::endl;
   std::cout << b << std::endl;

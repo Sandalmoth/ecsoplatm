@@ -71,10 +71,10 @@ int main() {
 
   float bar2_payload = 3.0f;
 
-  ecs.apply(&bar, b);
-  ecs.apply(&foo, a, b);
-  ecs.apply(&bar2, a, &bar2_payload);
-  ecs.apply(&foobar, a, b, c);
+  ecs.apply(b, &bar);
+  ecs.apply(a, b, &foo);
+  ecs.apply(a, &bar2, &bar2_payload);
+  ecs.apply(a, b, c, &foobar);
   std::cout << ecs.pool << std::endl;
   ecs.wait();
 

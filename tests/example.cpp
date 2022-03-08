@@ -36,8 +36,8 @@ int main() {
   // a - [(1 0)(3 2)(4 3)]
   // b - [(1 0)(2 1)(3 2)(4 3)]
 
-  ecs.apply(&foo, a, b);
-  ecs.apply(&bar, a); // will wait for foo
+  ecs.apply(a, b, &foo);
+  ecs.apply(a, &bar); // will wait for foo
   ecs.wait();         // wait for all 'apply's to finish
 
   std::cout << a << std::endl;
