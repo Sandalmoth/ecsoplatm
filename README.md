@@ -57,6 +57,16 @@ int main() {
   // we now have
   // a - [(1 0.5)(3 1.5)(4 2)]
   // b - [(1 -1)(2 1)(3 -1)(4 -1)]
+  
+  // apply to all entities that have b but no a
+  ecs.apply(b, &baz, a);
+  ecs.wait();
+
+  std::cout << a << std::endl;
+  std::cout << b << std::endl;
+  // we now have
+  // a - [(1 0.5)(3 1.5)(4 2)]
+  // b - [(1 -1)(2 2)(3 -1)(4 -1)]
 }
 ```
 
