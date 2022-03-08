@@ -8,6 +8,8 @@ void foo(float &a, float &b) {
 
 void bar(float &a) { a /= 2.0f; }
 
+void baz(float &a) { ++a; }
+
 int main() {
 
   ecs::Manager ecs; // creates std::hardware_concurrency workers
@@ -45,4 +47,13 @@ int main() {
   // we now have
   // a - [(1 0.5)(3 1.5)(4 2)]
   // b - [(1 -1)(2 1)(3 -1)(4 -1)]
+
+  ecs.apply(b, &baz, a); // apply to all entities that have b but no a
+  ecs.wait();
+
+  std::cout << a << std::endl;
+  std::cout << b << std::endl;
+  // we now have
+  // a - [(1 0.5)(3 1.5)(4 2)]
+  // b - [(1 -1)(2 2)(3 -1)(4 -1)]
 }
